@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Chính sách Package Visibility của Android 11+ (API 30+):
+      Khai báo danh sách các package ứng dụng YouTube Mod và Intent scheme cần truy vấn
+    -->
+    <queries>
+        <package android:name="app.morphe.android.youtube" />
+        <package android:name="app.revanced.android.youtube" />
+        <package android:name="app.rvx.android.youtube" />
+        <package android:name="app.rvx.android.apps.youtube.music" />
+        <package android:name="com.google.android.youtube" />
+
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="vnd.youtube" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:label="Link Dispatcher"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+        tools:targetApi="34">
+
+        <!-- 1. MainActivity: Giao diện cài đặt Compose Material 3 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="Link Dispatcher">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          2. RouterActivity: Activity trung gian trong suốt (Theme.Translucent.NoTitleBar)
+          - Khi tìm thấy app Mod: chuyển hướng tức thì trong vài mili-giây và gọi finish() ngay.
+          - Khi KHÔNG tìm thấy app Mod: hiển thị Compose ModalBottomSheet / Dialog để người dùng
+            chọn mở bằng ứng dụng khác hoặc trình duyệt mà không bị văng (crash) như Theme.NoDisplay.
+        -->
+        <activity
+            android:name=".RouterActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+
+            <!-- Đón bắt toàn bộ liên kết YouTube với autoVerify="true" và priority="999" -->
+            <intent-filter
+                android:autoVerify="true"
+                android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <!-- Schemes -->
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+
+                <!-- Hosts -->
+                <data android:host="youtube.com" />
+                <data android:host="m.youtube.com" />
+                <data android:host="youtu.be" />
+                <data android:host="www.youtube.com" />
+                <data android:host="music.youtube.com" />
+
+                <!-- Path Prefixes -->
+                <data android:pathPrefix="/" />
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/shorts" />
+                <data android:pathPrefix="/live" />
+                <data android:pathPrefix="/playlist" />
+            </intent-filter>
+
+            <!-- Đón bắt thêm thao tác Share link (ACTION_SEND) từ Zalo, Messenger, Trình duyệt -->
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

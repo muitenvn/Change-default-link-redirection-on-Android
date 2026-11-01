@@ -1,0 +1,6 @@
+{
+  "name": "Link Dispatcher — Android Native & APK CI Studio",
+  "description": "Bộ cấu hình dự án Android Native (Kotlin + Jetpack Compose) và GitHub Actions tự động build APK cho ứng dụng trung gian chuyển tiếp liên kết YouTube.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

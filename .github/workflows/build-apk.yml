@@ -1,0 +1,63 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Assemble Debug APK & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: 2. Cài đặt JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 3. Khởi tạo Gradle Wrapper (nếu tải code lên qua giao diện web GitHub) & Cấp quyền thực thi
+        run: |
+          if [ ! -f "./gradlew" ] || [ ! -f "./gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "Đang tự động khởi tạo bộ khung Gradle Wrapper 8.7..."
+            gradle wrapper --gradle-version 8.7
+          fi
+          chmod +x ./gradlew
+
+      - name: 4. Build file APK (assembleDebug)
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: 5. Tải file app-debug.apk lên GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: LinkDispatcher-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: 6. Tự động tạo GitHub Release đính kèm file APK (Khi push hoặc chạy thủ công trên nhánh main)
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: "Link Dispatcher APK Build #${{ github.run_number }}"
+          body: |
+            ### Bản dựng tự động Link Dispatcher (Android Native)
+            - **Commit:** `${{ github.sha }}`
+            - **Package mặc định:** `app.morphe.android.youtube` (có thể đổi trực tiếp trong ứng dụng)
+            - **Hướng dẫn cài đặt:** Tải file **`app-debug.apk`** bên dưới về điện thoại Android, cài đặt, sau đó mở ứng dụng và bật quyền **Mở theo mặc định (Open by default)** cho các tên miền YouTube.
+          files: app/build/outputs/apk/debug/app-debug.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
