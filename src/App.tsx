@@ -6,11 +6,8 @@ import {
   Download,
   FileCode,
   Play,
-  AlertTriangle,
-  ShieldCheck,
   Palette,
   Power,
-  Sliders,
 } from 'lucide-react';
 import {
   generateAndroidProjectFiles,
@@ -128,7 +125,6 @@ function AtmosphericSvgBackdrop({ themeId }: { themeId: WallpaperThemeId }) {
         <circle cx="1180" cy="140" r="620" fill="url(#orb1)" />
         <circle cx="240" cy="720" r="560" fill="url(#orb2)" />
 
-        {/* Architectural fiber-optic routing curves */}
         <path
           d="M-100 260 C 360 120, 820 420, 1540 210"
           stroke={theme.waveStroke}
@@ -159,7 +155,14 @@ function AppLauncherLogo({ className = 'w-9 h-9' }: { className?: string }) {
       aria-label="Link Dispatcher App Logo"
     >
       <defs>
-        <linearGradient id="logoBgGrad" x1="0" y1="0" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id="logoBgGrad"
+          x1="0"
+          y1="0"
+          x2="108"
+          y2="108"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop offset="0%" stopColor="#07111E" />
           <stop offset="55%" stopColor="#0C262B" />
           <stop offset="100%" stopColor="#090D16" />
@@ -195,13 +198,12 @@ export default function App() {
     minSdk: 26,
     targetSdk: 34,
     preferNativeSchemeDefault: false,
-    autoFallbackOfficial: true,
     intentPriority: 999,
     wallpaperTheme: 'aurora_emerald',
     routes: INITIAL_ROUTES,
   });
 
-  const [activeRouteTab, setActiveRouteTab] = useState<ServiceRouteId>('youtube_music');
+  const [activeRouteTab, setActiveRouteTab] = useState<ServiceRouteId>('youtube_video');
   const [selectedFilePath, setSelectedFilePath] = useState<string>(
     'app/src/main/AndroidManifest.xml'
   );
@@ -213,7 +215,7 @@ export default function App() {
   const [simUrlInput, setSimUrlInput] = useState<string>('');
   const [simTargetPackageInstalled, setSimTargetPackageInstalled] = useState<boolean>(true);
   const [simPhoneScreen, setSimPhoneScreen] = useState<
-    'main_activity' | 'router_success' | 'router_fallback' | 'system_open_by_default'
+    'main_activity' | 'router_dispatch_result' | 'system_open_by_default'
   >('main_activity');
   const [simDispatchCount, setSimDispatchCount] = useState<number>(28);
   const [simLastDispatchedToast, setSimLastDispatchedToast] = useState<string | null>(null);
@@ -293,21 +295,16 @@ export default function App() {
       );
       zip.file(
         'README.md',
-        `# ${config.appName} (Multi-Platform Android Native Link Dispatcher)\n\n` +
-          `Ứng dụng trung gian điều hướng thông minh cho **YouTube Video**, **YouTube Music**, **Spotify**, **Facebook** và **Mạng xã hội (TikTok, Instagram, Threads, X, Reddit)**.\n\n` +
-          `## Điểm nổi bật\n` +
-          `- **Tách biệt YouTube Music (` +
-          `music.youtube.com` +
-          `)**: Mở thẳng vào ứng dụng YouTube Music (Mod hoặc Mặc định) thay vì bị nhảy nhầm vào YouTube thường.\n` +
-          `- **Hỗ trợ cả App Mod, App Mặc định (Official) và Package tự nhập bất kỳ**.\n` +
-          `- **Chống đụng hàng thông minh**: Mỗi dịch vụ sử dụng một \`<activity-alias>\` độc lập. Người dùng muốn tắt luồng nào (ví dụ đã có sẵn app Spotify/Facebook mặc định), chỉ cần gạt nút tắt trong app là Android gỡ bỏ hoàn toàn bộ lọc của dịch vụ đó.\n`
+        `# ${config.appName} (Android Native Link Dispatcher)\n\n` +
+          `- **RouterActivity dùng \`Theme.NoDisplay\` & kế thừa \`android.app.Activity\`** kèm bộ lọc Default Browser (\`http\`/\`https\` \`BROWSABLE\`) để bắt liên kết mặc định mượt như phiên bản đầu.\n` +
+          `- **Không hiện bảng báo lỗi & Không tự mở app mặc định**: Nếu chưa cài đặt bản Mod (ví dụ \`app.morphe.android.youtube\`), ứng dụng sẽ tự động tắt luồng / vô hiệu hóa \`ComponentName\` của luồng đó và mở thẳng qua trình duyệt Web.\n`
       );
 
       const blob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'LinkDispatcher-MultiPlatform-Android-Repo.zip';
+      a.download = 'LinkDispatcher-Android-Repo.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -318,37 +315,42 @@ export default function App() {
   };
 
   const triggerSimulateRouter = () => {
+    const effectiveUrl = simUrlInput.trim() || SAMPLE_LINKS[0].url;
+    if (!simUrlInput.trim()) {
+      setSimUrlInput(effectiveUrl);
+    }
     setSimDispatchCount((prev) => prev + 1);
     const route = config.routes[parsedPreview.serviceId];
 
-    if (!route.enabled) {
-      setSimPhoneScreen('router_success');
+    // Trường hợp 1: Luồng đã tắt hoặc để trống Package (Mở bằng Web)
+    if (!route.enabled || !route.targetPackage) {
+      setSimPhoneScreen('router_dispatch_result');
       setSimLastDispatchedToast(
-        `Luồng [${route.title}] đang TẮT (Chống đụng hàng) -> Hệ điều hành mở thẳng bằng App mặc định sẵn có trên máy!`
+        `[${route.title}] Mở thẳng qua Trình duyệt Web (Không hiện bất kỳ hộp thoại nào) · finish() ngay lập tức`
       );
       return;
     }
 
-    if (simTargetPackageInstalled) {
-      setSimPhoneScreen('router_success');
-      const targetUri =
-        config.preferNativeSchemeDefault && parsedPreview.nativeSchemeUri
-          ? parsedPreview.nativeSchemeUri
-          : parsedPreview.normalizedHttpsUrl || simUrlInput;
+    // Trường hợp 2: Chưa cài bản Mod (ví dụ app.morphe.android.youtube)
+    if (!simTargetPackageInstalled) {
+      // Tự động tắt luồng / vô hiệu hóa ComponentName của luồng đó và mở thẳng qua trình duyệt
+      updateRoute(route.id, (r) => ({ ...r, enabled: false }));
+      setSimPhoneScreen('router_dispatch_result');
       setSimLastDispatchedToast(
-        `[${route.title}] Đã dịch & chuyển tiếp sang "${route.targetPackage}" (${targetUri}) · finish() trong 4ms`
+        `Chưa cài "${route.targetPackage}" -> Đã tự động tắt ComponentName(${route.aliasName}) & mở thẳng qua Trình duyệt Web (Không báo lỗi)`
       );
-    } else if (config.autoFallbackOfficial) {
-      setSimPhoneScreen('router_success');
-      setSimLastDispatchedToast(
-        `Chưa cài "${route.targetPackage}" -> Tự động chuyển về App Mặc định chính thức "${route.officialPackage}"!`
-      );
-    } else {
-      setSimPhoneScreen('router_fallback');
-      setSimLastDispatchedToast(
-        `Chưa cài "${route.targetPackage}" -> Hiển thị Compose FallbackBottomSheet`
-      );
+      return;
     }
+
+    // Trường hợp 3: Đã cài bản Mod -> Mở tức thì với Theme.NoDisplay
+    setSimPhoneScreen('router_dispatch_result');
+    const targetUri =
+      config.preferNativeSchemeDefault && parsedPreview.nativeSchemeUri
+        ? parsedPreview.nativeSchemeUri
+        : parsedPreview.normalizedHttpsUrl || effectiveUrl;
+    setSimLastDispatchedToast(
+      `[Theme.NoDisplay] Đã bắn Intent sang "${route.targetPackage}" (${targetUri}) & finish() trong 2ms`
+    );
   };
 
   const activeRoute = config.routes[activeRouteTab];
@@ -357,7 +359,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen text-slate-100 flex flex-col relative">
-      {/* Custom Atmospheric Multi-Layer Background */}
       <AtmosphericSvgBackdrop themeId={config.wallpaperTheme} />
 
       {/* Top Bar Contract: 3 zones separated by gap-8 */}
@@ -374,13 +375,13 @@ export default function App() {
             href="#multi-route-hub"
             className="hover:text-white transition-colors whitespace-nowrap shrink-0"
           >
-            Cấu hình Đa luồng &amp; Chống đụng hàng
+            Cấu hình Đa luồng
           </a>
           <a
             href="#intent-simulator"
             className="hover:text-white transition-colors whitespace-nowrap shrink-0"
           >
-            Mô phỏng Dịch Link &amp; Hình nền App
+            Mô phỏng Theme.NoDisplay
           </a>
           <a
             href="#source-workspace"
@@ -408,84 +409,76 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Container */}
       <main id="top" className="max-w-[1400px] w-full mx-auto px-6 py-8 space-y-12 flex-1">
-        {/* Hero & Wallpaper + Global Settings */}
+        {/* Hero */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch border-b border-white/10 pb-10">
           <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <AppLauncherLogo className="w-12 h-12 border border-emerald-400/30" />
                 <div className="text-xs text-slate-300 flex flex-wrap items-center gap-2 font-mono">
-                  <span>Adaptive Vector Logo</span>
+                  <span>Theme.NoDisplay</span>
                   <span aria-hidden="true">·</span>
-                  <span>YouTube &amp; YT Music</span>
+                  <span>Default Browser BROWSABLE</span>
                   <span aria-hidden="true">·</span>
-                  <span>Spotify &amp; MXH</span>
-                  <span aria-hidden="true">·</span>
-                  <span>Chế độ Web (Để trống)</span>
+                  <span>Silent Auto-Disable Component</span>
                 </div>
               </div>
               <h1
                 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight"
                 style={{ textWrap: 'balance' }}
               >
-                Ứng dụng trung gian Điều hướng Đa nền tảng &amp; Tự động dịch Liên kết tới Đích
+                Link Dispatcher Android Native — Bắt link mặc định siêu mượt &amp; Tự mở Trình duyệt khi chưa cài Mod
               </h1>
               <p className="text-slate-200/90 text-base leading-relaxed max-w-2xl">
-                Tự động phân biệt và dịch liên kết{' '}
-                <code className="text-emerald-300 font-mono text-sm">music.youtube.com</code> thẳng
-                tới ứng dụng <strong>YouTube Music</strong> (Mod hoặc Mặc định), liên kết{' '}
-                <code className="text-emerald-300 font-mono text-sm">youtube.com / youtu.be</code>{' '}
-                tới <strong>YouTube Video</strong>, cùng các đường dẫn <strong>Spotify</strong>,{' '}
-                <strong>Facebook</strong>, <strong>TikTok</strong>, <strong>Instagram</strong>. Hỗ
-                trợ chọn <strong>App Mod</strong>, <strong>App Mặc định chính thức</strong> hoặc{' '}
-                <strong>tự nhập bất kỳ Package nào</strong>, kèm công tắc <strong>Bật / Tắt</strong>{' '}
-                từng luồng nếu máy đã có sẵn ứng dụng để không bao giờ bị đụng hàng.
+                Đã khôi phục cơ chế <code className="text-emerald-300 font-mono text-sm">Theme.NoDisplay</code>{' '}
+                kết hợp bộ lọc <strong>Default Browser (BROWSABLE http &amp; https)</strong> giúp đón
+                bắt liên kết mượt tức thì như phiên bản đầu. Nếu máy chưa cài đặt bản Mod (ví dụ{' '}
+                <code className="text-emerald-300 font-mono text-sm">app.morphe.android.youtube</code>),
+                ứng dụng sẽ <strong>tự động tắt luồng / vô hiệu hóa ComponentName</strong> của luồng
+                đó và <strong>mở thẳng qua trình duyệt Web</strong> mà không bao giờ hiện bảng báo
+                lỗi hay mở nhầm sang app mặc định.
               </p>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-white/10">
               <div>
-                <div className="text-xs text-slate-400">Luồng đang kích hoạt</div>
-                <div className="text-lg font-bold text-white font-mono tabular-nums mt-0.5">
-                  {Object.values(config.routes).filter((r) => r.enabled).length} / 5 dịch vụ
+                <div className="text-xs text-slate-400">Theme RouterActivity</div>
+                <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">
+                  Theme.NoDisplay
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-400">Đích YouTube Music</div>
-                <div className="text-xs font-bold text-emerald-300 font-mono truncate mt-1">
-                  {config.routes.youtube_music.targetPackage}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-400">Cơ chế chống đụng hàng</div>
+                <div className="text-xs text-slate-400">Chế độ nhận link</div>
                 <div className="text-sm font-bold text-white font-mono mt-0.5">
-                  Activity-Alias OS
+                  Default Browser + Alias
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-400">Chủ đề Hình nền App</div>
-                <div className={`text-sm font-bold mt-0.5 ${currentThemeObj.accentText}`}>
-                  {currentThemeObj.label}
+                <div className="text-xs text-slate-400">Khi chưa cài bản Mod</div>
+                <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">
+                  Tắt Alias &amp; Mở Web
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-400">Bảng báo lỗi</div>
+                <div className="text-sm font-bold text-white font-mono mt-0.5">
+                  Đã xóa hoàn toàn
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Wallpaper & Conflict Guard Control Panel */}
+          {/* Wallpaper & Project Settings */}
           <div className="lg:col-span-5 bg-slate-950/75 backdrop-blur-md border border-white/15 rounded-xl p-5 flex flex-col justify-between space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Palette className="w-4 h-4 text-emerald-400" />
-                  <span>Hình nền Ứng dụng &amp; Chế độ Chống đụng hàng</span>
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Áp dụng đồng thời cho cả giao diện Web Studio và Canvas nền trong{' '}
-                  <code className="font-mono text-slate-200">MainActivity.kt</code>.
-                </p>
-              </div>
+            <div>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Palette className="w-4 h-4 text-emerald-400" />
+                <span>Hình nền Ứng dụng &amp; Thông số Build</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Tùy chỉnh hình nền Canvas trong <code className="font-mono text-slate-200">MainActivity.kt</code> và Application ID của dự án.
+              </p>
             </div>
 
             <div className="space-y-3">
@@ -513,53 +506,52 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                <div className="pr-3">
-                  <div className="text-xs font-medium text-white">
-                    Tự động lùi về App Mặc định (Official) nếu chưa cài Mod
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    Ví dụ: chưa cài RVX Music thì tự mở YouTube Music mặc định (`com.google.android.apps.youtube.music`)
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-white/10">
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">Application ID</label>
+                  <input
+                    type="text"
+                    value={config.applicationId}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        applicationId: e.target.value.trim() || 'com.example.linkdispatcher',
+                      }))
+                    }
+                    className="w-full px-3 py-1.5 text-xs font-mono bg-slate-900 border border-white/15 rounded-lg text-white focus:outline-none focus:border-emerald-400"
+                  />
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      autoFallbackOfficial: !prev.autoFallbackOfficial,
-                    }))
-                  }
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                    config.autoFallbackOfficial
-                      ? 'bg-emerald-400 text-slate-950'
-                      : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  {config.autoFallbackOfficial ? 'Đang BẬT' : 'Đang TẮT'}
-                </button>
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">Tên ứng dụng</label>
+                  <input
+                    type="text"
+                    value={config.appName}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        appName: e.target.value || 'Link Dispatcher',
+                      }))
+                    }
+                    className="w-full px-3 py-1.5 text-xs bg-slate-900 border border-white/15 rounded-lg text-white focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* SECTION 1: MULTI-ROUTE CONFIGURATION & CONFLICT AVOIDANCE */}
+        {/* SECTION 1: MULTI-ROUTE CONFIGURATION */}
         <section id="multi-route-hub" className="space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-white">
-                01. Quản lý Đường dẫn Đa Dịch vụ (YouTube, YT Music, Spotify, Facebook, MXH)
-              </h2>
-              <p className="text-sm text-slate-300 mt-0.5">
-                Tùy chỉnh từng đường dẫn: Chọn <strong>App Mod</strong>,{' '}
-                <strong>App Mặc định</strong>, hoặc <strong>tự gõ tên Package bất kỳ</strong>. Nếu
-                dịch vụ nào đã có app chuẩn trên máy và bạn không muốn bị đụng hàng, hãy gạt nút{' '}
-                <strong>Tắt luồng</strong>.
-              </p>
-            </div>
+          <div>
+            <h2 className="text-xl font-bold text-white">
+              01. Quản lý Đường dẫn Đa Dịch vụ (YouTube, YT Music, Spotify, Facebook, MXH)
+            </h2>
+            <p className="text-sm text-slate-300 mt-0.5">
+              Chọn gói đích cho từng luồng hoặc gạt nút Bật/Tắt. Nếu gói đích chưa được cài đặt trên
+              điện thoại, ứng dụng sẽ tự động vô hiệu hóa <code className="font-mono">ComponentName</code> của luồng đó và mở thẳng qua trình duyệt Web.
+            </p>
           </div>
 
-          {/* 5 Service Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             {(Object.values(config.routes) as RouteRuleConfig[]).map((route) => {
               const isSelected = activeRouteTab === route.id;
@@ -602,7 +594,7 @@ export default function App() {
                     <div className="text-[10px] text-slate-400">Đích hiện tại:</div>
                     <div className="text-xs font-mono text-emerald-300 truncate mt-0.5">
                       {!route.enabled
-                        ? 'Đã tắt luồng'
+                        ? 'Đã tắt luồng (Mở qua Trình duyệt)'
                         : route.targetPackage || 'Để trống (Mở bằng Web)'}
                     </div>
                   </div>
@@ -611,7 +603,6 @@ export default function App() {
             })}
           </div>
 
-          {/* Detailed Editor for Selected Route */}
           <div className="bg-slate-950/80 backdrop-blur-md border border-white/15 rounded-xl p-6 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
               <div>
@@ -636,25 +627,21 @@ export default function App() {
                 }`}
               >
                 <Power className="w-3.5 h-3.5" />
-                <span>
-                  {activeRoute.enabled
-                    ? 'Đang BẬT luồng này (Nhấn để Tắt nếu bị đụng hàng)'
-                    : 'Đang TẮT luồng này (Nhấn để Bật lại)'}
-                </span>
+                <span>{activeRoute.enabled ? 'Đang BẬT (Nhấn để Tắt)' : 'Đang TẮT (Nhấn để Bật)'}</span>
               </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               <div className="lg:col-span-7 space-y-3">
                 <label className="block text-xs font-medium text-slate-200">
-                  Chọn nhanh Ứng dụng Mod hoặc Ứng dụng Mặc định (Official) cho {activeRoute.title}:
+                  Chọn nhanh Package đích cho {activeRoute.title}:
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {activeRoute.presets.map((preset) => {
                     const isCurrent = activeRoute.targetPackage === preset.pkg;
                     return (
                       <button
-                        key={preset.pkg}
+                        key={preset.label}
                         type="button"
                         onClick={() =>
                           updateRoute(activeRoute.id, (r) => ({
@@ -666,9 +653,7 @@ export default function App() {
                         className={`px-3 py-1.5 text-xs rounded-lg border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                           isCurrent
                             ? 'bg-emerald-400/20 border-emerald-400 text-emerald-200 font-semibold'
-                            : preset.isOfficial
-                              ? 'bg-sky-500/10 border-sky-400/30 text-sky-200 hover:bg-sky-500/20'
-                              : 'bg-slate-900 border-white/10 text-slate-300 hover:text-white'
+                            : 'bg-slate-900 border-white/10 text-slate-300 hover:text-white'
                         }`}
                       >
                         {preset.label}
@@ -696,7 +681,7 @@ export default function App() {
                 />
                 <div className="text-[11px] text-slate-400 font-mono">
                   {activeRoute.targetPackage
-                    ? `Giao thức: ${activeRoute.nativeSchemeExample}`
+                    ? `Nếu chưa cài ${activeRoute.targetPackage}: Tự tắt luồng & mở thẳng qua Trình duyệt`
                     : 'Đang để trống Package -> Mở thẳng bằng Trình duyệt Web'}
                 </div>
               </div>
@@ -704,17 +689,16 @@ export default function App() {
           </div>
         </section>
 
-        {/* SECTION 2: INTERACTIVE MULTI-PLATFORM TRANSLATOR & ANDROID WALLPAPER SIMULATOR */}
+        {/* SECTION 2: SIMULATOR */}
         <section id="intent-simulator" className="space-y-6 pt-6 border-t border-white/10">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-white">
-                02. Bàn thử nghiệm Tự động Dịch Link &amp; Mô phỏng Giao diện Hình nền Android
+                02. Bàn thử nghiệm Chuyển hướng Tức thì (Theme.NoDisplay &amp; Không Báo Lỗi)
               </h2>
               <p className="text-sm text-slate-300 mt-0.5">
-                Thử nghiệm trực tiếp đường dẫn <strong>YouTube Music</strong>,{' '}
-                <strong>YouTube Video</strong>, <strong>Spotify</strong>, <strong>Facebook</strong>{' '}
-                và xem trước giao diện Compose có hình nền đồ họa đa lớp.
+                Kiểm tra hành vi khi đã cài bản Mod so với khi chưa cài bản Mod (tự động tắt{' '}
+                <code className="font-mono">ComponentName</code> và mở thẳng qua trình duyệt Web).
               </p>
             </div>
 
@@ -727,17 +711,17 @@ export default function App() {
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                MainActivity (Có Hình nền)
+                MainActivity (Cài đặt)
               </button>
               <button
-                onClick={() => setSimPhoneScreen('router_fallback')}
+                onClick={() => setSimPhoneScreen('router_dispatch_result')}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                  simPhoneScreen === 'router_fallback'
+                  simPhoneScreen === 'router_dispatch_result'
                     ? 'bg-slate-800 text-white'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Router Fallback Sheet
+                Kết quả RouterActivity
               </button>
               <button
                 onClick={() => setSimPhoneScreen('system_open_by_default')}
@@ -753,36 +737,32 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-            {/* Left column: Multi-Platform Link Translator Inspector */}
             <div className="lg:col-span-7 bg-slate-950/80 backdrop-blur-md border border-white/15 rounded-xl p-6 flex flex-col justify-between space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-white">
-                    Bộ dịch tự động URL -&gt; Ứng dụng đích (YouTube Music, Spotify, FB, MXH)
+                    Kiểm tra liên kết đầu vào (Để trống mặc định)
                   </h3>
                   <span className="text-xs font-mono text-emerald-300">
-                    Auto-Translate Engine
+                    Theme.NoDisplay · 0ms UI
                   </span>
                 </div>
 
                 <div>
-                  <label className="block text-xs text-slate-300 mb-1.5">
-                    Dán đường dẫn bất kỳ hoặc chọn mẫu bên dưới để kiểm tra:
-                  </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={simUrlInput}
                       onChange={(e) => setSimUrlInput(e.target.value)}
                       className="flex-1 px-3.5 py-2 text-xs font-mono bg-slate-900 border border-white/15 rounded-lg text-white focus:outline-none focus:border-emerald-400"
-                      placeholder="https://music.youtube.com/watch?v=..."
+                      placeholder="Để trống mặc định — Nhập link hoặc bấm nút mẫu bên dưới..."
                     />
                     <button
                       onClick={triggerSimulateRouter}
                       className="px-4 py-2 text-xs font-semibold bg-emerald-400 hover:bg-emerald-300 text-slate-950 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>Dịch &amp; Mở App Đích</span>
+                      <span>Chạy thử Router</span>
                     </button>
                   </div>
 
@@ -804,46 +784,33 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Translation Result Table */}
                 <div className="bg-slate-900/90 border border-white/10 rounded-lg divide-y divide-white/10 text-xs">
                   <div className="px-4 py-2.5 flex items-center justify-between">
-                    <span className="text-slate-400">Dịch vụ nhận diện tự động</span>
+                    <span className="text-slate-400">Dịch vụ nhận diện</span>
                     <span className="font-mono font-semibold text-emerald-300">
                       {parsedPreview.serviceTitle} ({parsedPreview.linkType})
                     </span>
                   </div>
                   <div className="px-4 py-2.5 flex items-center justify-between">
-                    <span className="text-slate-400">Trạng thái luồng (Chống đụng hàng)</span>
+                    <span className="text-slate-400">Trạng thái ComponentName</span>
                     <span
                       className={`font-mono font-semibold ${
-                        matchedRouteConfig.enabled ? 'text-emerald-400' : 'text-amber-300'
+                        matchedRouteConfig.enabled ? 'text-emerald-400' : 'text-slate-400'
                       }`}
                     >
                       {matchedRouteConfig.enabled
-                        ? `ĐANG BẬT (${matchedRouteConfig.aliasName})`
-                        : 'ĐÃ TẮT (Nhường quyền cho App sẵn có)'}
+                        ? `ENABLED (${matchedRouteConfig.aliasName})`
+                        : `DISABLED (${matchedRouteConfig.aliasName})`}
                     </span>
                   </div>
                   <div className="px-4 py-2.5 flex items-center justify-between gap-4">
-                    <span className="text-slate-400 shrink-0">Package Đích sẽ mở</span>
+                    <span className="text-slate-400 shrink-0">Hành động của RouterActivity</span>
                     <span className="font-mono font-semibold text-white truncate">
-                      {matchedRouteConfig.enabled
-                        ? matchedRouteConfig.targetPackage
-                        : `${matchedRouteConfig.officialPackage} (Hệ thống)`}
-                    </span>
-                  </div>
-                  <div className="px-4 py-2.5 flex items-center justify-between gap-4">
-                    <span className="text-slate-400 shrink-0">
-                      Native Deep-Link URI đã dịch
-                    </span>
-                    <span className="font-mono text-emerald-300 truncate">
-                      {parsedPreview.nativeSchemeUri || parsedPreview.normalizedHttpsUrl || 'N/A'}
-                    </span>
-                  </div>
-                  <div className="px-4 py-2.5 flex items-center justify-between">
-                    <span className="text-slate-400">App Mặc định dự phòng (Fallback)</span>
-                    <span className="font-mono text-sky-300">
-                      {matchedRouteConfig.officialPackage}
+                      {!matchedRouteConfig.enabled || !matchedRouteConfig.targetPackage
+                        ? 'Mở thẳng qua Trình duyệt Web'
+                        : simTargetPackageInstalled
+                          ? `Mở ${matchedRouteConfig.targetPackage}`
+                          : 'Tự tắt luồng & Mở thẳng qua Trình duyệt Web'}
                     </span>
                   </div>
                 </div>
@@ -853,10 +820,10 @@ export default function App() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="text-xs font-semibold text-white">
-                      Giả lập trạng thái cài đặt gói đích trên điện thoại
+                      Giả lập trạng thái cài đặt bản Mod trên máy
                     </div>
                     <div className="text-xs text-slate-400">
-                      Kiểm tra cách ứng dụng tự lùi về App Mặc định hoặc mở hộp chọn khi chưa cài Mod.
+                      Thử chuyển sang &quot;Chưa cài&quot; rồi bấm Chạy thử Router để kiểm chứng cơ chế tự tắt luồng &amp; mở trình duyệt không báo lỗi.
                     </div>
                   </div>
 
@@ -870,25 +837,24 @@ export default function App() {
                     }`}
                   >
                     {simTargetPackageInstalled
-                      ? `Đã cài ${matchedRouteConfig.targetPackage}`
-                      : `Chưa cài ${matchedRouteConfig.targetPackage}`}
+                      ? `Đã cài ${matchedRouteConfig.targetPackage || 'Web'}`
+                      : `Chưa cài ${matchedRouteConfig.targetPackage || 'Mod'}`}
                   </button>
                 </div>
 
                 {simLastDispatchedToast && (
                   <div className="px-3.5 py-2.5 rounded-lg bg-slate-900 border border-white/10 text-xs font-mono text-emerald-300 flex items-center justify-between gap-2">
                     <span className="truncate">{simLastDispatchedToast}</span>
-                    <span className="text-slate-500 shrink-0">Intent Log</span>
+                    <span className="text-slate-500 shrink-0">NoDisplay</span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Right column: Android 14 Compose Simulator WITH Atmospheric Wallpaper */}
+            {/* Right column: Android 14 Simulator */}
             <div
               className={`lg:col-span-5 rounded-xl border border-white/20 p-5 flex flex-col justify-between relative overflow-hidden bg-gradient-to-b ${currentThemeObj.bgGradient}`}
             >
-              {/* Simulated Phone Canvas Waveform Overlay */}
               <svg
                 className="pointer-events-none absolute inset-0 w-full h-full opacity-75"
                 viewBox="0 0 400 700"
@@ -902,20 +868,15 @@ export default function App() {
                   stroke={currentThemeObj.waveStroke}
                   strokeWidth="2"
                 />
-                <path
-                  d="M0 250 C 140 180, 260 320, 400 230"
-                  stroke={currentThemeObj.waveStroke}
-                  strokeWidth="1.5"
-                />
               </svg>
 
-              {/* Status Bar */}
               <div className="relative z-10 flex items-center justify-between text-[11px] font-mono text-slate-300 pb-3 border-b border-white/15">
                 <span>Android 14 · {currentThemeObj.label}</span>
-                <span>{simPhoneScreen === 'main_activity' ? 'MainActivity.kt' : 'RouterActivity.kt'}</span>
+                <span>
+                  {simPhoneScreen === 'main_activity' ? 'MainActivity.kt' : 'Theme.NoDisplay'}
+                </span>
               </div>
 
-              {/* Screen 1: MainActivity with Wallpaper & Multi-Route Cards */}
               {simPhoneScreen === 'main_activity' && (
                 <div className="relative z-10 py-3 space-y-3 flex-1 flex flex-col justify-between">
                   <div className="space-y-2.5">
@@ -924,12 +885,11 @@ export default function App() {
                       <div>
                         <div className="text-base font-bold text-white">{config.appName}</div>
                         <div className="text-[11px] text-slate-300">
-                          Điều hướng YouTube, YT Music, Spotify &amp; MXH
+                          Điều hướng siêu mượt (Theme.NoDisplay &amp; Default Browser)
                         </div>
                       </div>
                     </div>
 
-                    {/* Route List inside Phone Preview */}
                     <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
                       {(Object.values(config.routes) as RouteRuleConfig[]).map((route, idx) => (
                         <div
@@ -959,34 +919,11 @@ export default function App() {
                             </button>
                           </div>
 
-                          {route.enabled && (
-                            <div className="mt-2 space-y-1.5">
-                              <div className="flex flex-wrap gap-1">
-                                {route.presets.slice(0, 3).map((p) => (
-                                  <button
-                                    key={p.pkg}
-                                    type="button"
-                                    onClick={() =>
-                                      updateRoute(route.id, (r) => ({
-                                        ...r,
-                                        targetPackage: p.pkg,
-                                      }))
-                                    }
-                                    className={`px-1.5 py-0.5 text-[10px] rounded cursor-pointer whitespace-nowrap shrink-0 ${
-                                      route.targetPackage === p.pkg
-                                        ? 'bg-emerald-400/25 text-emerald-200 border border-emerald-400/40'
-                                        : 'bg-slate-900/90 text-slate-400'
-                                    }`}
-                                  >
-                                    {p.label}
-                                  </button>
-                                ))}
-                              </div>
-                              <div className="px-2 py-1 rounded bg-slate-900/90 border border-white/10 font-mono text-[11px] text-emerald-300 truncate">
-                                Đích: {route.targetPackage || 'Để trống (Mở bằng Web)'}
-                              </div>
+                          <div className="mt-2 space-y-1.5">
+                            <div className="px-2 py-1 rounded bg-slate-900/90 border border-white/10 font-mono text-[11px] text-emerald-300 truncate">
+                              Đích: {route.targetPackage || 'Để trống (Mở bằng Web)'}
                             </div>
-                          )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -997,40 +934,30 @@ export default function App() {
                       onClick={() => setSimPhoneScreen('system_open_by_default')}
                       className="w-full py-2 text-xs font-semibold bg-white/15 hover:bg-white/25 text-white rounded-lg transition-colors cursor-pointer"
                     >
-                      Mở cài đặt &apos;Mở theo mặc định&apos; (Open by default)
+                      Mở cài đặt &apos;Mở theo mặc định&apos; / Default Browser
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Screen 2: RouterActivity Instant Dispatch Success */}
-              {simPhoneScreen === 'router_success' && (
+              {simPhoneScreen === 'router_dispatch_result' && (
                 <div className="relative z-10 py-6 space-y-4 flex-1 flex flex-col justify-between">
-                  <div className="space-y-3 bg-slate-950/80 backdrop-blur-md p-4 rounded-xl border border-white/15">
+                  <div className="space-y-3 bg-slate-950/85 backdrop-blur-md p-4 rounded-xl border border-white/15">
                     <div className="text-xs font-mono text-emerald-400">
-                      RouterActivity -&gt; {parsedPreview.serviceTitle}
+                      RouterActivity (Theme.NoDisplay) -&gt; finish()
                     </div>
                     <h4 className="text-base font-bold text-white">
-                      {matchedRouteConfig.enabled
-                        ? `Đã tự động dịch & mở ${matchedRouteConfig.targetPackage}`
-                        : `Luồng đã tắt -> Mở thẳng bằng ${matchedRouteConfig.officialPackage}`}
+                      {matchedRouteConfig.enabled &&
+                      matchedRouteConfig.targetPackage &&
+                      simTargetPackageInstalled
+                        ? `Đã mở tức thì ${matchedRouteConfig.targetPackage}`
+                        : 'Đã tự động tắt luồng chưa cài Mod & mở thẳng bằng Trình duyệt Web'}
                     </h4>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Liên kết <code className="font-mono text-emerald-300">{parsedPreview.host}</code>{' '}
-                      được nhận diện thuộc nhóm <strong>{parsedPreview.serviceTitle}</strong> và
-                      chuyển hướng thẳng tới ứng dụng đích trong vài mili-giây.
+                      Không hiển thị bất kỳ hộp thoại báo lỗi nào và không tự ý mở ứng dụng mặc định.{' '}
+                      <code className="font-mono text-emerald-300">RouterActivity</code> xử lý ngầm
+                      trong vài mili-giây và đóng ngay bằng <code className="font-mono">finish()</code>.
                     </p>
-                    <div className="p-3 rounded-lg bg-slate-900 border border-white/10 font-mono text-[11px] space-y-1">
-                      <div className="text-emerald-300 truncate">
-                        URI: {parsedPreview.nativeSchemeUri || parsedPreview.normalizedHttpsUrl}
-                      </div>
-                      <div className="text-slate-200">
-                        Target Package: {matchedRouteConfig.targetPackage}
-                      </div>
-                      <div className="text-slate-400">
-                        Fallback Official: {matchedRouteConfig.officialPackage}
-                      </div>
-                    </div>
                   </div>
 
                   <button
@@ -1042,67 +969,15 @@ export default function App() {
                 </div>
               )}
 
-              {/* Screen 3: RouterActivity Fallback ModalBottomSheet */}
-              {simPhoneScreen === 'router_fallback' && (
-                <div className="relative z-10 py-4 space-y-3 flex-1 flex flex-col justify-between">
-                  <div className="text-xs text-slate-300">
-                    Khi chưa cài gói đích và tắt tự động chuyển sang App mặc định:
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-950/95 border border-white/20 space-y-3">
-                    <div className="w-10 h-1 bg-slate-700 rounded-full mx-auto" />
-                    <div className="text-sm font-bold text-white flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span>Chọn ứng dụng mở ({parsedPreview.serviceTitle})</span>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <button
-                        onClick={() => setSimPhoneScreen('router_success')}
-                        className="w-full py-2 text-xs font-semibold bg-emerald-400 text-slate-950 rounded-lg transition-colors cursor-pointer"
-                      >
-                        Mở bằng App Mặc định ({matchedRouteConfig.officialPackage})
-                      </button>
-                      <button
-                        onClick={() => setSimPhoneScreen('router_success')}
-                        className="w-full py-1.5 text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-white/15 text-slate-200 rounded-lg transition-colors cursor-pointer"
-                      >
-                        Mở qua Trình duyệt web
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1 text-xs">
-                      <button
-                        onClick={() => {
-                          updateRoute(parsedPreview.serviceId, (r) => ({ ...r, enabled: false }));
-                          setSimPhoneScreen('main_activity');
-                        }}
-                        className="text-amber-300 hover:underline cursor-pointer"
-                      >
-                        Tắt luôn luồng này (Tránh đụng hàng)
-                      </button>
-                      <button
-                        onClick={() => setSimPhoneScreen('main_activity')}
-                        className="text-slate-400 hover:text-white cursor-pointer"
-                      >
-                        Đóng
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Screen 4: System Open By Default */}
               {simPhoneScreen === 'system_open_by_default' && (
                 <div className="relative z-10 py-4 space-y-3 flex-1 flex flex-col justify-between">
                   <div className="space-y-2.5 bg-slate-950/85 backdrop-blur-md p-4 rounded-xl border border-white/15">
                     <div className="text-sm font-bold text-white">
-                      Mở theo mặc định (Chỉ hiện các luồng đang BẬT)
+                      Mở theo mặc định / Default Browser
                     </div>
                     <p className="text-[11px] text-slate-300">
-                      Nhờ sử dụng <code className="font-mono">&lt;activity-alias&gt;</code>, những
-                      dịch vụ bạn đã TẮT sẽ tự động biến mất khỏi danh sách tranh chấp tên miền của
-                      Android:
+                      Trạng thái các <code className="font-mono">&lt;activity-alias&gt;</code> trên
+                      hệ thống:
                     </p>
                     <div className="space-y-1.5 pt-1">
                       {(Object.values(config.routes) as RouteRuleConfig[]).map((r) => (
@@ -1116,7 +991,7 @@ export default function App() {
                               r.enabled ? 'text-emerald-400' : 'text-slate-500 line-through'
                             }`}
                           >
-                            {r.enabled ? 'Đang nhận link' : 'Đã gỡ bộ lọc'}
+                            {r.enabled ? 'ENABLED' : 'DISABLED'}
                           </span>
                         </div>
                       ))}
@@ -1140,11 +1015,10 @@ export default function App() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-white">
-                03. Trọn bộ Mã nguồn Android Native (Đã cập nhật Đa nền tảng &amp; Hình nền)
+                03. Trọn bộ Mã nguồn Android Native (Đã cập nhật Theme.NoDisplay &amp; Tự tắt luồng thiếu Mod)
               </h2>
               <p className="text-sm text-slate-300 mt-0.5">
-                Mọi thay đổi về Hình nền, Package đích (Mod / Mặc định / Tùy chỉnh) và trạng thái
-                Bật/Tắt từng luồng ở trên đều được cập nhật trực tiếp vào mã nguồn bên dưới.
+                Sao chép từng file hoặc nhấn nút <strong>Tải trọn bộ Repo (.ZIP)</strong> để lấy toàn bộ dự án mới nhất.
               </p>
             </div>
 
@@ -1152,7 +1026,7 @@ export default function App() {
               {(
                 [
                   { id: 'all', label: `Tất cả (${projectFiles.length})` },
-                  { id: 'core', label: 'Mã nguồn cốt lõi (3)' },
+                  { id: 'core', label: 'Mã nguồn & Logo (6)' },
                   { id: 'gradle', label: 'Cấu hình Gradle (5)' },
                   { id: 'ci', label: 'GitHub Actions (1)' },
                 ] as const
@@ -1275,52 +1149,50 @@ export default function App() {
           className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-white/10"
         >
           <div className="bg-slate-950/75 backdrop-blur-md border border-white/15 rounded-xl p-5 space-y-2">
-            <div className="text-xs font-mono text-emerald-400">01. Tách riêng YouTube Music</div>
+            <div className="text-xs font-mono text-emerald-400">01. Theme.NoDisplay &amp; Default Browser</div>
             <h3 className="text-base font-bold text-white">
-              Điều hướng chuẩn xác music.youtube.com
+              Nhận đường link mặc định mượt như phiên bản đầu
             </h3>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Thay vì gộp chung vào YouTube thường khiến link nhạc bị mở nhầm bằng app video,{' '}
-              <code className="font-mono">RouteYoutubeMusicAlias</code> và{' '}
-              <code className="font-mono">RouterActivity.kt</code> tách riêng tên miền{' '}
-              <code className="font-mono">music.youtube.com</code> để bắn thẳng sang{' '}
-              <strong>YouTube Music Mod</strong> (<code className="font-mono">app.rvx.android.apps.youtube.music</code>)
-              hoặc <strong>YouTube Music Mặc định</strong> (<code className="font-mono">com.google.android.apps.youtube.music</code>).
+              <code className="font-mono">RouterActivity</code> kế thừa trực tiếp từ{' '}
+              <code className="font-mono">android.app.Activity</code> với{' '}
+              <code className="font-mono">android:theme=&quot;@android:style/Theme.NoDisplay&quot;</code>{' '}
+              và khai báo bộ lọc <code className="font-mono">BROWSABLE http/https</code> kèm{' '}
+              <code className="font-mono">pathPattern=&quot;.*&quot;</code>, giúp hệ thống đón bắt
+              link tức thì không tạo cửa sổ giao diện.
             </p>
           </div>
 
           <div className="bg-slate-950/75 backdrop-blur-md border border-white/15 rounded-xl p-5 space-y-2">
-            <div className="text-xs font-mono text-emerald-400">02. Chống đụng hàng tuyệt đối</div>
+            <div className="text-xs font-mono text-emerald-400">02. Không tự mở App Mặc định</div>
             <h3 className="text-base font-bold text-white">
-              Bật / Tắt từng dịch vụ bằng Activity-Alias
+              Đã xóa hoàn toàn cơ chế tự lùi về App gốc
             </h3>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Mỗi nền tảng (YouTube, YT Music, Spotify, Facebook, MXH) nằm trong một{' '}
-              <code className="font-mono">&lt;activity-alias&gt;</code> riêng. Khi bạn tắt một dịch
-              vụ trong ứng dụng vì máy đã có sẵn app chuẩn, lệnh{' '}
-              <code className="font-mono">setComponentEnabledSetting(..., DISABLED)</code> sẽ gỡ
-              hẳn bộ lọc đó khỏi Android để không bao giờ bị đụng hàng.
+              Nếu bạn chọn bản Mod (ví dụ <code className="font-mono">app.morphe.android.youtube</code>)
+              nhưng chưa cài trên máy, ứng dụng sẽ không tự mở YouTube gốc và không hiện bảng báo lỗi
+              &quot;Không tìm thấy ứng dụng đích&quot;.
             </p>
           </div>
 
           <div className="bg-slate-950/75 backdrop-blur-md border border-white/15 rounded-xl p-5 space-y-2">
-            <div className="text-xs font-mono text-emerald-400">03. Tự động dịch Deep-Link</div>
+            <div className="text-xs font-mono text-emerald-400">03. Tự tắt Luồng &amp; Mở Trình duyệt</div>
             <h3 className="text-base font-bold text-white">
-              Hỗ trợ cả App Mod, App Mặc định &amp; App Tùy ý
+              Vô hiệu hóa ComponentName &amp; Chuyển thẳng ra Web
             </h3>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Bất kể bạn chọn bản Mod, bản Mặc định chính thức hay tự gõ Package Name của một ứng
-              dụng bất kỳ, <code className="font-mono">RouterActivity</code> đều tự động dịch link
-              web sang giao thức tương ứng (<code className="font-mono">vnd.youtube</code>,{' '}
-              <code className="font-mono">spotify:track:</code>,{' '}
-              <code className="font-mono">fb://facewebmodal</code>) và đi thẳng tới đích.
+              Khi phát hiện gói đích chưa được cài đặt,{' '}
+              <code className="font-mono">RouterActivity</code> và{' '}
+              <code className="font-mono">MainActivity</code> tự động gọi{' '}
+              <code className="font-mono">setComponentEnabledSetting(..., DISABLED)</code> để tắt
+              luồng đó và mở thẳng liên kết qua trình duyệt Web.
             </p>
           </div>
         </section>
       </main>
 
       <footer className="border-t border-white/10 py-6 px-6 text-center text-xs text-slate-400 bg-[#050811]/80 backdrop-blur-sm">
-        Link Dispatcher Multi-Platform Android Native · Kotlin 2.0 + Jetpack Compose Material 3
+        Link Dispatcher Android Native · Theme.NoDisplay · Kotlin 2.0 + Jetpack Compose Material 3
       </footer>
     </div>
   );

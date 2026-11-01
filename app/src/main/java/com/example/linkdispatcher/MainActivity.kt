@@ -73,10 +73,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/**
- * Hình nền đồ họa बहु-lớp (Atmospheric Mesh & Wave Canvas Background)
- * cho phép người dùng đổi chủ đề hình nền ngay trong ứng dụng.
- */
 @Composable
 fun AtmosphericAppBackground(
     wallpaperStyle: String,
@@ -105,7 +101,6 @@ fun AtmosphericAppBackground(
             val w = size.width
             val h = size.height
 
-            // Quầng sáng nghệ thuật phía trên
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(accentGlow.copy(alpha = 0.22f), Color.Transparent),
@@ -116,7 +111,6 @@ fun AtmosphericAppBackground(
                 radius = w * 0.65f
             )
 
-            // Quầng sáng phụ phía dưới
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(accentGlow.copy(alpha = 0.14f), Color.Transparent),
@@ -127,7 +121,6 @@ fun AtmosphericAppBackground(
                 radius = w * 0.55f
             )
 
-            // Các đường sóng kiến trúc mềm mại
             for (i in 0..3) {
                 val offsetFactor = i * 65f
                 val wavePath = Path().apply {
@@ -150,9 +143,6 @@ fun AtmosphericAppBackground(
     }
 }
 
-/**
- * Logo Vector chính thức của ứng dụng Link Dispatcher hiển thị ngay trên thanh tiêu đề (TopAppBar)
- */
 @Composable
 fun AppLogoBadge() {
     Canvas(
@@ -162,7 +152,6 @@ fun AppLogoBadge() {
             .padding(6.dp)
     ) {
         val w = 28.dp.toPx()
-        // Vẽ biểu tượng mũi tên chuyển hướng màu Ngọc Lục Bảo
         drawCircle(
             color = Color(0xFF10B981),
             radius = w * 0.42f,
@@ -184,15 +173,6 @@ fun DispatcherMainScreen() {
         mutableStateOf(prefs.getString(RouterActivity.KEY_WALLPAPER_STYLE, "aurora_emerald") ?: "aurora_emerald")
     }
 
-    var useNativeScheme by remember {
-        mutableStateOf(prefs.getBoolean(RouterActivity.KEY_USE_NATIVE_SCHEME, false))
-    }
-
-    var autoFallbackOfficial by remember {
-        mutableStateOf(prefs.getBoolean(RouterActivity.KEY_AUTO_FALLBACK_OFFICIAL, true))
-    }
-
-    // Phần nhập link Web để trống mặc định theo yêu cầu
     var testUrl by remember {
         mutableStateOf("")
     }
@@ -208,20 +188,29 @@ fun DispatcherMainScreen() {
         )
     }
 
-    // Trạng thái Bật/Tắt và Package Name của từng dịch vụ (YouTube, YT Music, Spotify, Facebook, Social)
-    val routeEnabledMap = remember {
-        mutableStateMapOf<ServiceRoute, Boolean>().apply {
-            ServiceRoute.entries.forEach { route ->
-                put(route, prefs.getBoolean(RouterActivity.prefKeyRouteEnabled(route), true))
-            }
-        }
-    }
-
     val routePackageMap = remember {
         mutableStateMapOf<ServiceRoute, String>().apply {
             ServiceRoute.entries.forEach { route ->
                 val saved = prefs.getString(RouterActivity.prefKeyRoutePackage(route), route.defaultPackage)
                 put(route, saved ?: route.defaultPackage)
+            }
+        }
+    }
+
+    val routeEnabledMap = remember {
+        mutableStateMapOf<ServiceRoute, Boolean>().apply {
+            ServiceRoute.entries.forEach { route ->
+                val pkg = routePackageMap[route] ?: route.defaultPackage
+                val pkgInstalledOrWeb = pkg.isBlank() || checkPackageInstalled(context, pkg)
+                val savedEnabled = prefs.getBoolean(RouterActivity.prefKeyRouteEnabled(route), true)
+                // Nếu gói đích chưa được cài đặt trên máy, tự động tắt luồng và vô hiệu hóa ComponentName
+                val effectiveEnabled = if (!pkgInstalledOrWeb) {
+                    setRouteComponentEnabled(context, prefs, route, false)
+                    false
+                } else {
+                    savedEnabled
+                }
+                put(route, effectiveEnabled)
             }
         }
     }
@@ -234,6 +223,21 @@ fun DispatcherMainScreen() {
                     RouterActivity.KEY_LAST_DISPATCHED_URL,
                     "Chưa có liên kết nào"
                 ) ?: "Chưa có liên kết nào"
+
+                // Đồng bộ lại trạng thái: tự động tắt luồng nếu gói đích chưa cài đặt
+                ServiceRoute.entries.forEach { route ->
+                    val currentPkg = routePackageMap[route] ?: route.defaultPackage
+                    val isValid = currentPkg.isBlank() || checkPackageInstalled(context, currentPkg)
+                    if (!isValid && routeEnabledMap[route] == true) {
+                        routeEnabledMap[route] = false
+                        setRouteComponentEnabled(context, prefs, route, false)
+                    } else {
+                        routeEnabledMap[route] = prefs.getBoolean(
+                            RouterActivity.prefKeyRouteEnabled(route),
+                            false
+                        )
+                    }
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -257,7 +261,7 @@ fun DispatcherMainScreen() {
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Điều hướng thông minh YouTube, YT Music, Spotify & Mạng xã hội",
+                                    text = "Điều hướng siêu mượt (Theme.NoDisplay & Default Browser)",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -278,7 +282,7 @@ fun DispatcherMainScreen() {
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // CARD 0: CHỌN HÌNH NỀN & TÙY CHỌN MẶC ĐỊNH
+                // CARD 0: CHỌN HÌNH NỀN
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -290,7 +294,7 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Giao diện Hình nền & Tùy chọn chung",
+                            text = "Chủ đề Hình nền Ứng dụng",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -316,42 +320,14 @@ fun DispatcherMainScreen() {
                                 )
                             }
                         }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Tự động mở App Mặc định nếu chưa cài bản Mod",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "Nếu gói Mod chưa cài, tự chuyển về YouTube / YT Music / Spotify chính thức",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = autoFallbackOfficial,
-                                onCheckedChange = { checked ->
-                                    autoFallbackOfficial = checked
-                                    prefs.edit()
-                                        .putBoolean(RouterActivity.KEY_AUTO_FALLBACK_OFFICIAL, checked)
-                                        .apply()
-                                }
-                            )
-                        }
                     }
                 }
 
-                // DANH SÁCH CẤU HÌNH TỪNG LUỒNG DỊCH VỤ (CÓ CÔNG TẮC BẬT/TẮT RIÊNG)
+                // DANH SÁCH CẤU HÌNH TỪNG LUỒNG DỊCH VỤ
                 ServiceRoute.entries.forEachIndexed { index, route ->
-                    val isEnabled = routeEnabledMap[route] ?: true
                     val currentPkg = routePackageMap[route] ?: route.defaultPackage
-                    val isInstalled = checkPackageInstalled(context, currentPkg)
+                    val isInstalled = currentPkg.isNotBlank() && checkPackageInstalled(context, currentPkg)
+                    val isEnabled = routeEnabledMap[route] ?: false
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -375,10 +351,13 @@ fun DispatcherMainScreen() {
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
-                                        text = if (isEnabled) {
-                                            "Đang kích hoạt đón bắt liên kết"
-                                        } else {
-                                            "Đã tắt (Không can thiệp, nhường quyền cho App đã đặt)"
+                                        text = when {
+                                            !isEnabled && currentPkg.isNotBlank() && !isInstalled ->
+                                                "Đã tự động tắt luồng (Chưa cài $currentPkg -> Mở thẳng bằng Trình duyệt)"
+                                            isEnabled ->
+                                                "Đang bật đón bắt liên kết"
+                                            else ->
+                                                "Đã tắt (ComponentName đã vô hiệu hóa)"
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = if (isEnabled) {
@@ -391,72 +370,87 @@ fun DispatcherMainScreen() {
 
                                 Switch(
                                     checked = isEnabled,
-                                    onCheckedChange = { enabled ->
-                                        routeEnabledMap[route] = enabled
-                                        setRouteComponentEnabled(context, prefs, route, enabled)
+                                    onCheckedChange = { requestedEnable ->
+                                        if (requestedEnable && currentPkg.isNotBlank() && !checkPackageInstalled(context, currentPkg)) {
+                                            // Nếu chưa cài bản mod mà bấm bật, tự giữ ở trạng thái tắt để tránh lỗi
+                                            routeEnabledMap[route] = false
+                                            setRouteComponentEnabled(context, prefs, route, false)
+                                        } else {
+                                            routeEnabledMap[route] = requestedEnable
+                                            setRouteComponentEnabled(context, prefs, route, requestedEnable)
+                                        }
                                     }
                                 )
                             }
 
-                            if (isEnabled) {
-                                Text(
-                                    text = "Chọn nhanh bản Mod, App Mặc định hoặc nhập Package bất kỳ:",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Text(
+                                text = "Chọn nhanh Package đích hoặc để trống để mở bằng Trình duyệt:",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
 
-                                FlowRow(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    route.suggestedPackages.forEach { (label, pkg) ->
-                                        FilterChip(
-                                            selected = currentPkg == pkg,
-                                            onClick = {
-                                                routePackageMap[route] = pkg
-                                                prefs.edit()
-                                                    .putString(RouterActivity.prefKeyRoutePackage(route), pkg)
-                                                    .apply()
-                                            },
-                                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
-                                        )
-                                    }
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                route.suggestedPackages.forEach { (label, pkg) ->
+                                    FilterChip(
+                                        selected = currentPkg == pkg,
+                                        onClick = {
+                                            routePackageMap[route] = pkg
+                                            prefs.edit()
+                                                .putString(RouterActivity.prefKeyRoutePackage(route), pkg)
+                                                .apply()
+                                            val valid = pkg.isBlank() || checkPackageInstalled(context, pkg)
+                                            routeEnabledMap[route] = valid
+                                            setRouteComponentEnabled(context, prefs, route, valid)
+                                        },
+                                        label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                    )
                                 }
-
-                                OutlinedTextField(
-                                    value = currentPkg,
-                                    onValueChange = { value ->
-                                        val cleaned = value.trim()
-                                        routePackageMap[route] = cleaned
-                                        prefs.edit()
-                                            .putString(RouterActivity.prefKeyRoutePackage(route), cleaned)
-                                            .apply()
-                                    },
-                                    label = { Text("Package Name đích (Để trống = Mở bằng Web)") },
-                                    placeholder = { Text("Để trống để mở qua trình duyệt Web") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                Text(
-                                    text = when {
-                                        currentPkg.isBlank() -> "Chế độ Web: Đang để trống Package (Sẽ mở bằng Trình duyệt Web)"
-                                        isInstalled -> "Đã tìm thấy gói \"$currentPkg\" trên máy"
-                                        else -> "Chưa phát hiện \"$currentPkg\" (Sẽ tự chuyển sang App mặc định hoặc bật hộp chọn)"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (currentPkg.isBlank() || isInstalled) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.error
-                                    }
-                                )
                             }
+
+                            OutlinedTextField(
+                                value = currentPkg,
+                                onValueChange = { value ->
+                                    val cleaned = value.trim()
+                                    routePackageMap[route] = cleaned
+                                    prefs.edit()
+                                        .putString(RouterActivity.prefKeyRoutePackage(route), cleaned)
+                                        .apply()
+                                    val valid = cleaned.isBlank() || checkPackageInstalled(context, cleaned)
+                                    if (!valid) {
+                                        routeEnabledMap[route] = false
+                                        setRouteComponentEnabled(context, prefs, route, false)
+                                    }
+                                },
+                                label = { Text("Package Name đích (Để trống = Mở bằng Web)") },
+                                placeholder = { Text("Để trống để mở qua trình duyệt Web") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Text(
+                                text = when {
+                                    currentPkg.isBlank() ->
+                                        "Chế độ Web: Đang để trống Package (Mở thẳng qua Trình duyệt)"
+                                    isInstalled ->
+                                        "Đã cài đặt \"$currentPkg\" trên thiết bị"
+                                    else ->
+                                        "Chưa cài \"$currentPkg\" -> Đã tự động vô hiệu hóa luồng & mở thẳng qua Trình duyệt"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (currentPkg.isBlank() || isInstalled) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
                         }
                     }
                 }
 
-                // CARD CẤP QUYỀN MỞ THEO MẶC ĐỊNH
+                // CARD CẤP QUYỀN MỞ THEO MẶC ĐỊNH / DEFAULT BROWSER
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -468,12 +462,12 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Cài đặt 'Mở theo mặc định' của Hệ thống",
+                            text = "Cài đặt 'Mở theo mặc định' / Trình duyệt mặc định",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "Mở phần cài đặt liên kết mặc định của Android để tích chọn các tên miền bạn muốn ứng dụng tự động xử lý.",
+                            text = "Nhờ hỗ trợ cả bộ lọc BROWSABLE http/https lẫn autoVerify, bạn có thể bật 'Mở đường liên kết được hỗ trợ' hoặc chọn làm ứng dụng điều hướng liên kết mặc định mượt như phiên bản đầu.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -483,10 +477,16 @@ fun DispatcherMainScreen() {
                         ) {
                             Text("Mở màn hình 'Mở theo mặc định' (Open by default)")
                         }
+                        OutlinedButton(
+                            onClick = { openDefaultAppsSettings(context) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Mở cài đặt 'Ứng dụng mặc định' (Default Apps)")
+                        }
                     }
                 }
 
-                // CARD KIỂM TRA NHANH INTENT ĐA NỀN TẢNG
+                // CARD KIỂM TRA NHANH INTENT
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -498,7 +498,7 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Kiểm tra nhanh Chuyển tiếp Đa nền tảng",
+                            text = "Kiểm tra nhanh Chuyển tiếp",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -506,30 +506,10 @@ fun DispatcherMainScreen() {
                         OutlinedTextField(
                             value = testUrl,
                             onValueChange = { testUrl = it },
-                            label = { Text("Nhập link YouTube, YT Music, Spotify, Facebook, TikTok...") },
+                            label = { Text("Nhập link cần thử nghiệm (Để trống mặc định)") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
-
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { testUrl = "https://music.youtube.com/watch?v=dQw4w9WgXcQ" }
-                            ) {
-                                Text("Mẫu YT Music")
-                            }
-                            OutlinedButton(
-                                onClick = { testUrl = "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT" }
-                            ) {
-                                Text("Mẫu Spotify")
-                            }
-                            OutlinedButton(
-                                onClick = { testUrl = "https://fb.watch/v123456789/" }
-                            ) {
-                                Text("Mẫu Facebook")
-                            }
-                        }
 
                         Button(
                             onClick = {
@@ -562,11 +542,6 @@ fun DispatcherMainScreen() {
     }
 }
 
-/**
- * Bật hoặc tắt hẳn <activity-alias> ở cấp Hệ điều hành Android để khi người dùng tắt
- * một luồng (ví dụ Spotify hoặc Facebook), ứng dụng sẽ không còn xuất hiện hay tranh
- * quyền mở mặc định với app đã có sẵn trên máy.
- */
 private fun setRouteComponentEnabled(
     context: Context,
     prefs: android.content.SharedPreferences,
@@ -587,7 +562,7 @@ private fun setRouteComponentEnabled(
             PackageManager.DONT_KILL_APP
         )
     } catch (_: Exception) {
-        // Bỏ qua nếu alias không tồn tại
+        // Bỏ qua
     }
 }
 
@@ -631,5 +606,13 @@ private fun openSystemDefaultLinksSettings(context: Context) {
                 Toast.LENGTH_SHORT
             ).show()
         }
+    }
+}
+
+private fun openDefaultAppsSettings(context: Context) {
+    try {
+        context.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+    } catch (_: Exception) {
+        openSystemDefaultLinksSettings(context)
     }
 }

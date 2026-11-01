@@ -18,10 +18,9 @@ export interface RouteRuleConfig {
   aliasName: string;
   enabled: boolean;
   targetPackage: string;
-  officialPackage: string;
   domains: string[];
   nativeSchemeExample: string;
-  presets: Array<{ label: string; pkg: string; isOfficial?: boolean }>;
+  presets: Array<{ label: string; pkg: string }>;
 }
 
 export interface ProjectConfig {
@@ -31,7 +30,6 @@ export interface ProjectConfig {
   minSdk: number;
   targetSdk: number;
   preferNativeSchemeDefault: boolean;
-  autoFallbackOfficial: boolean;
   intentPriority: number;
   wallpaperTheme: WallpaperThemeId;
   routes: Record<ServiceRouteId, RouteRuleConfig>;
@@ -68,14 +66,13 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
     aliasName: '.RouteYoutubeVideoAlias',
     enabled: true,
     targetPackage: 'app.morphe.android.youtube',
-    officialPackage: 'com.google.android.youtube',
     domains: ['youtube.com', 'm.youtube.com', 'www.youtube.com', 'youtu.be'],
     nativeSchemeExample: 'vnd.youtube:<videoId>',
     presets: [
       { label: 'YouTube Morphe (Mod)', pkg: 'app.morphe.android.youtube' },
       { label: 'YouTube ReVanced (Mod)', pkg: 'app.revanced.android.youtube' },
       { label: 'RVX YouTube (Mod)', pkg: 'app.rvx.android.youtube' },
-      { label: 'YouTube Mặc định (Official)', pkg: 'com.google.android.youtube', isOfficial: true },
+      { label: 'YouTube Thường', pkg: 'com.google.android.youtube' },
       { label: 'NewPipe', pkg: 'org.schabi.newpipe' },
       { label: 'Mở bằng Web (Để trống)', pkg: '' },
     ],
@@ -87,18 +84,13 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
     aliasName: '.RouteYoutubeMusicAlias',
     enabled: true,
     targetPackage: 'app.rvx.android.apps.youtube.music',
-    officialPackage: 'com.google.android.apps.youtube.music',
     domains: ['music.youtube.com'],
     nativeSchemeExample: 'vnd.youtube.music:<videoId>',
     presets: [
       { label: 'RVX Music (Mod)', pkg: 'app.rvx.android.apps.youtube.music' },
       { label: 'ReVanced Music (Mod)', pkg: 'app.revanced.android.apps.youtube.music' },
       { label: 'Morphe Music (Mod)', pkg: 'app.morphe.android.apps.youtube.music' },
-      {
-        label: 'YouTube Music Mặc định',
-        pkg: 'com.google.android.apps.youtube.music',
-        isOfficial: true,
-      },
+      { label: 'YouTube Music Thường', pkg: 'com.google.android.apps.youtube.music' },
       { label: 'Mở bằng Web (Để trống)', pkg: '' },
     ],
   },
@@ -109,13 +101,12 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
     aliasName: '.RouteSpotifyAlias',
     enabled: true,
     targetPackage: 'com.spotify.music',
-    officialPackage: 'com.spotify.music',
     domains: ['open.spotify.com', 'spotify.link', 'spoti.fi'],
     nativeSchemeExample: 'spotify:track:<id>',
     presets: [
-      { label: 'Spotify Mặc định / xManager', pkg: 'com.spotify.music', isOfficial: true },
+      { label: 'Spotify / xManager', pkg: 'com.spotify.music' },
       { label: 'Spotify Lite', pkg: 'com.spotify.lite' },
-      { label: 'Spotube (Client thay thế)', pkg: 'oss.krtirtho.spotube' },
+      { label: 'Spotube', pkg: 'oss.krtirtho.spotube' },
       { label: 'Mở bằng Web (Để trống)', pkg: '' },
     ],
   },
@@ -126,13 +117,12 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
     aliasName: '.RouteFacebookAlias',
     enabled: true,
     targetPackage: 'com.facebook.katana',
-    officialPackage: 'com.facebook.katana',
     domains: ['facebook.com', 'www.facebook.com', 'm.facebook.com', 'fb.watch', 'fb.com'],
     nativeSchemeExample: 'fb://facewebmodal/f?href=...',
     presets: [
-      { label: 'Facebook Mặc định', pkg: 'com.facebook.katana', isOfficial: true },
+      { label: 'Facebook', pkg: 'com.facebook.katana' },
       { label: 'Facebook Lite', pkg: 'com.facebook.lite' },
-      { label: 'SlimSocial for Facebook', pkg: 'it.rignanese.leo.slimfacebook' },
+      { label: 'SlimSocial', pkg: 'it.rignanese.leo.slimfacebook' },
       { label: 'Mở bằng Web (Để trống)', pkg: '' },
     ],
   },
@@ -143,7 +133,6 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
     aliasName: '.RouteSocialAlias',
     enabled: true,
     targetPackage: 'com.ss.android.ugc.trill',
-    officialPackage: 'com.ss.android.ugc.trill',
     domains: [
       'tiktok.com',
       'vm.tiktok.com',
@@ -155,12 +144,12 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
     ],
     nativeSchemeExample: 'https:// (Direct App Package Intent)',
     presets: [
-      { label: 'TikTok Mặc định (Châu Á)', pkg: 'com.ss.android.ugc.trill', isOfficial: true },
+      { label: 'TikTok (Châu Á)', pkg: 'com.ss.android.ugc.trill' },
       { label: 'TikTok Quốc tế / Mod', pkg: 'com.zhiliaoapp.musically' },
-      { label: 'Instagram Mặc định', pkg: 'com.instagram.android', isOfficial: true },
+      { label: 'Instagram', pkg: 'com.instagram.android' },
       { label: 'Instander (IG Mod)', pkg: 'com.instander.android' },
-      { label: 'X / Twitter Mặc định', pkg: 'com.twitter.android', isOfficial: true },
-      { label: 'Reddit Mặc định', pkg: 'com.reddit.frontpage', isOfficial: true },
+      { label: 'X / Twitter', pkg: 'com.twitter.android' },
+      { label: 'Reddit', pkg: 'com.reddit.frontpage' },
       { label: 'Mở bằng Web (Để trống)', pkg: '' },
     ],
   },
@@ -168,6 +157,22 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
 
 export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformPreview {
   const trimmed = input.trim();
+  if (!trimmed) {
+    return {
+      originalInput: '',
+      extractedUrl: null,
+      normalizedHttpsUrl: null,
+      serviceId: 'youtube_video',
+      serviceTitle: 'Chưa nhập link',
+      extractedId: null,
+      playlistId: null,
+      timestampSeconds: null,
+      nativeSchemeUri: null,
+      linkType: 'EMPTY',
+      host: null,
+    };
+  }
+
   const urlMatch = trimmed.match(/(https?:\/\/[\w\-._~:/?#[\]@!$&'()*+,;=%]+)/i);
   const candidate = urlMatch ? urlMatch[1] : trimmed;
 
@@ -357,55 +362,68 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
   const facebook = config.routes.facebook;
   const social = config.routes.social_media;
 
+  const extraPackages = [
+    ytVideo.targetPackage,
+    ytMusic.targetPackage,
+    spotify.targetPackage,
+    facebook.targetPackage,
+    social.targetPackage,
+  ].filter(Boolean);
+
+  const uniquePackages = Array.from(
+    new Set([
+      ...extraPackages,
+      'app.morphe.android.youtube',
+      'app.revanced.android.youtube',
+      'app.rvx.android.youtube',
+      'com.google.android.youtube',
+      'org.schabi.newpipe',
+      'app.rvx.android.apps.youtube.music',
+      'app.revanced.android.apps.youtube.music',
+      'app.morphe.android.apps.youtube.music',
+      'com.google.android.apps.youtube.music',
+      'com.spotify.music',
+      'com.spotify.lite',
+      'oss.krtirtho.spotube',
+      'com.facebook.katana',
+      'com.facebook.lite',
+      'it.rignanese.leo.slimfacebook',
+      'com.ss.android.ugc.trill',
+      'com.zhiliaoapp.musically',
+      'com.instagram.android',
+      'com.instander.android',
+      'com.instagram.barcelona',
+      'com.twitter.android',
+      'com.reddit.frontpage',
+      'com.android.chrome',
+      'com.brave.browser',
+      'org.mozilla.firefox',
+      'com.microsoft.emmx',
+      'com.sec.android.app.sbrowser',
+    ])
+  );
+
+  const queriesPackagesXml = uniquePackages
+    .map((pkg) => `        <package android:name="${pkg}" />`)
+    .join('\n');
+
   const manifestXml = `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
       Chính sách Package Visibility của Android 11+ (API 30+):
-      Khai báo đầy đủ cả ứng dụng Mod, ứng dụng Mặc định (Official) và trình duyệt
-      cho YouTube, YouTube Music, Spotify, Facebook, TikTok, Instagram, X/Twitter, Reddit.
+      Khai báo các package đích và truy vấn trình duyệt (http/https BROWSABLE)
+      để kiểm tra trạng thái cài đặt và chuyển tiếp mượt mà trong mili-giây.
     -->
     <queries>
-        <!-- YouTube Video (Mod & Mặc định) -->
-        <package android:name="${ytVideo.targetPackage}" />
-        <package android:name="app.morphe.android.youtube" />
-        <package android:name="app.revanced.android.youtube" />
-        <package android:name="app.rvx.android.youtube" />
-        <package android:name="com.google.android.youtube" />
-        <package android:name="org.schabi.newpipe" />
+${queriesPackagesXml}
 
-        <!-- YouTube Music (Mod & Mặc định) -->
-        <package android:name="${ytMusic.targetPackage}" />
-        <package android:name="app.rvx.android.apps.youtube.music" />
-        <package android:name="app.revanced.android.apps.youtube.music" />
-        <package android:name="app.morphe.android.apps.youtube.music" />
-        <package android:name="com.google.android.apps.youtube.music" />
-
-        <!-- Spotify (Mặc định, Lite & Client thay thế) -->
-        <package android:name="${spotify.targetPackage}" />
-        <package android:name="com.spotify.music" />
-        <package android:name="com.spotify.lite" />
-        <package android:name="oss.krtirtho.spotube" />
-
-        <!-- Facebook & Messenger (Mặc định, Lite & Wrapper) -->
-        <package android:name="${facebook.targetPackage}" />
-        <package android:name="com.facebook.katana" />
-        <package android:name="com.facebook.lite" />
-        <package android:name="com.facebook.orca" />
-        <package android:name="it.rignanese.leo.slimfacebook" />
-
-        <!-- TikTok, Instagram, Threads, X (Twitter), Reddit -->
-        <package android:name="${social.targetPackage}" />
-        <package android:name="com.ss.android.ugc.trill" />
-        <package android:name="com.zhiliaoapp.musically" />
-        <package android:name="com.instagram.android" />
-        <package android:name="com.instander.android" />
-        <package android:name="com.instagram.barcelona" />
-        <package android:name="com.twitter.android" />
-        <package android:name="com.reddit.frontpage" />
-
-        <!-- Cho phép truy vấn toàn bộ ứng dụng hỗ trợ ACTION_VIEW https để người dùng tự nhập bất kỳ package nào -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
@@ -434,7 +452,7 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         tools:targetApi="${config.targetSdk}">
 
-        <!-- 1. MainActivity: Giao diện cài đặt Compose Material 3 có Hình nền & Quản lý Luồng -->
+        <!-- 1. MainActivity: Giao diện cài đặt Compose Material 3 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -446,16 +464,26 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
         </activity>
 
         <!--
-          2. RouterActivity gốc: Xử lý dịch URL & bắn Intent sang ứng dụng đích.
-          Đón nhận thêm thao tác Share văn bản (ACTION_SEND) từ Zalo, Messenger, Chrome.
+          2. RouterActivity: Dùng Theme.NoDisplay (như phiên bản đầu) để chuyển tiếp
+          tức thì không tạo cửa sổ giao diện, không giật khung hình và tự đóng ngay.
         -->
         <activity
             android:name=".RouterActivity"
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            android:theme="@android:style/Theme.NoDisplay">
 
+            <!-- Hỗ trợ nhận link với tư cách Default Browser / Generic HTTP & HTTPS Handler -->
+            <intent-filter android:priority="${config.intentPriority}">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+
+            <!-- Đón bắt thao tác Share link (ACTION_SEND) từ Zalo, Messenger, Trình duyệt -->
             <intent-filter android:priority="${config.intentPriority}">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -465,11 +493,9 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
 
         <!--
           ======================================================================
-          CÁC ACTIVITY-ALIAS ĐỘC LẬP CHO TỪNG DỊCH VỤ:
-          Giúp người dùng BẬT / TẮT từng dịch vụ ngay trong ứng dụng thông qua
-          PackageManager.setComponentEnabledSetting(). Khi tắt một dịch vụ (do bị
-          đụng hàng với app đã cài sẵn), hệ điều hành Android sẽ gỡ hẳn bộ lọc
-          của dịch vụ đó để không bao giờ tranh quyền mở mặc định nữa!
+          CÁC ACTIVITY-ALIAS ĐỘC LẬP CHO TỪNG LUỒNG DỊCH VỤ:
+          Khi bản Mod của một luồng chưa được cài đặt hoặc người dùng gạt nút Tắt,
+          hệ thống sẽ tự động vô hiệu hóa ComponentName của alias đó (DISABLED).
           ======================================================================
         -->
 
@@ -493,16 +519,11 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
                 <data android:host="m.youtube.com" />
                 <data android:host="www.youtube.com" />
                 <data android:host="youtu.be" />
-
-                <data android:pathPrefix="/" />
-                <data android:pathPrefix="/watch" />
-                <data android:pathPrefix="/shorts" />
-                <data android:pathPrefix="/live" />
-                <data android:pathPrefix="/playlist" />
+                <data android:pathPattern=".*" />
             </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 2: YOUTUBE MUSIC RIÊNG BIỆT (music.youtube.com) -->
+        <!-- ALIAS 2: YOUTUBE MUSIC (music.youtube.com) -->
         <activity-alias
             android:name=".RouteYoutubeMusicAlias"
             android:enabled="${ytMusic.enabled}"
@@ -518,12 +539,7 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
                 <data android:scheme="http" />
                 <data android:scheme="https" />
                 <data android:host="music.youtube.com" />
-
-                <data android:pathPrefix="/" />
-                <data android:pathPrefix="/watch" />
-                <data android:pathPrefix="/playlist" />
-                <data android:pathPrefix="/browse" />
-                <data android:pathPrefix="/channel" />
+                <data android:pathPattern=".*" />
             </intent-filter>
         </activity-alias>
 
@@ -545,13 +561,7 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
                 <data android:host="open.spotify.com" />
                 <data android:host="spotify.link" />
                 <data android:host="spoti.fi" />
-
-                <data android:pathPrefix="/" />
-                <data android:pathPrefix="/track" />
-                <data android:pathPrefix="/album" />
-                <data android:pathPrefix="/playlist" />
-                <data android:pathPrefix="/artist" />
-                <data android:pathPrefix="/episode" />
+                <data android:pathPattern=".*" />
             </intent-filter>
         </activity-alias>
 
@@ -575,7 +585,7 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
                 <data android:host="m.facebook.com" />
                 <data android:host="fb.watch" />
                 <data android:host="fb.com" />
-                <data android:pathPrefix="/" />
+                <data android:pathPattern=".*" />
             </intent-filter>
         </activity-alias>
 
@@ -606,7 +616,7 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
                 <data android:host="twitter.com" />
                 <data android:host="reddit.com" />
                 <data android:host="www.reddit.com" />
-                <data android:pathPrefix="/" />
+                <data android:pathPattern=".*" />
             </intent-filter>
         </activity-alias>
 
@@ -616,37 +626,15 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
 
   const routerActivityKt = `package ${config.applicationId}
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import java.util.regex.Pattern
 
 /**
@@ -657,7 +645,6 @@ enum class ServiceRoute(
     val title: String,
     val aliasClassName: String,
     val defaultPackage: String,
-    val officialPackage: String,
     val defaultEnabled: Boolean,
     val suggestedPackages: List<Pair<String, String>>
 ) {
@@ -666,14 +653,14 @@ enum class ServiceRoute(
         title = "YouTube Video",
         aliasClassName = "${config.applicationId}.RouteYoutubeVideoAlias",
         defaultPackage = "${ytVideo.targetPackage}",
-        officialPackage = "com.google.android.youtube",
         defaultEnabled = ${ytVideo.enabled},
         suggestedPackages = listOf(
             "YouTube Morphe (Mod)" to "app.morphe.android.youtube",
             "YouTube ReVanced (Mod)" to "app.revanced.android.youtube",
             "RVX YouTube (Mod)" to "app.rvx.android.youtube",
-            "YouTube Mặc định (Official)" to "com.google.android.youtube",
-            "NewPipe" to "org.schabi.newpipe"
+            "YouTube Thường" to "com.google.android.youtube",
+            "NewPipe" to "org.schabi.newpipe",
+            "Mở bằng Web (Để trống)" to ""
         )
     ),
     YOUTUBE_MUSIC(
@@ -681,13 +668,13 @@ enum class ServiceRoute(
         title = "YouTube Music",
         aliasClassName = "${config.applicationId}.RouteYoutubeMusicAlias",
         defaultPackage = "${ytMusic.targetPackage}",
-        officialPackage = "com.google.android.apps.youtube.music",
         defaultEnabled = ${ytMusic.enabled},
         suggestedPackages = listOf(
             "RVX Music (Mod)" to "app.rvx.android.apps.youtube.music",
             "ReVanced Music (Mod)" to "app.revanced.android.apps.youtube.music",
             "Morphe Music (Mod)" to "app.morphe.android.apps.youtube.music",
-            "YouTube Music Mặc định" to "com.google.android.apps.youtube.music"
+            "YouTube Music Thường" to "com.google.android.apps.youtube.music",
+            "Mở bằng Web (Để trống)" to ""
         )
     ),
     SPOTIFY(
@@ -695,12 +682,12 @@ enum class ServiceRoute(
         title = "Spotify",
         aliasClassName = "${config.applicationId}.RouteSpotifyAlias",
         defaultPackage = "${spotify.targetPackage}",
-        officialPackage = "com.spotify.music",
         defaultEnabled = ${spotify.enabled},
         suggestedPackages = listOf(
-            "Spotify Mặc định / xManager" to "com.spotify.music",
+            "Spotify / xManager" to "com.spotify.music",
             "Spotify Lite" to "com.spotify.lite",
-            "Spotube (Open Source)" to "oss.krtirtho.spotube"
+            "Spotube" to "oss.krtirtho.spotube",
+            "Mở bằng Web (Để trống)" to ""
         )
     ),
     FACEBOOK(
@@ -708,12 +695,12 @@ enum class ServiceRoute(
         title = "Facebook & Watch",
         aliasClassName = "${config.applicationId}.RouteFacebookAlias",
         defaultPackage = "${facebook.targetPackage}",
-        officialPackage = "com.facebook.katana",
         defaultEnabled = ${facebook.enabled},
         suggestedPackages = listOf(
-            "Facebook Mặc định" to "com.facebook.katana",
+            "Facebook" to "com.facebook.katana",
             "Facebook Lite" to "com.facebook.lite",
-            "SlimSocial for Facebook" to "it.rignanese.leo.slimfacebook"
+            "SlimSocial" to "it.rignanese.leo.slimfacebook",
+            "Mở bằng Web (Để trống)" to ""
         )
     ),
     SOCIAL_MEDIA(
@@ -721,24 +708,21 @@ enum class ServiceRoute(
         title = "Mạng xã hội (TikTok / IG / X / Reddit)",
         aliasClassName = "${config.applicationId}.RouteSocialAlias",
         defaultPackage = "${social.targetPackage}",
-        officialPackage = "com.ss.android.ugc.trill",
         defaultEnabled = ${social.enabled},
         suggestedPackages = listOf(
-            "TikTok Mặc định (Châu Á)" to "com.ss.android.ugc.trill",
+            "TikTok (Châu Á)" to "com.ss.android.ugc.trill",
             "TikTok Quốc tế / Mod" to "com.zhiliaoapp.musically",
-            "Instagram Mặc định" to "com.instagram.android",
+            "Instagram" to "com.instagram.android",
             "Instander (IG Mod)" to "com.instander.android",
             "X / Twitter" to "com.twitter.android",
-            "Reddit Mặc định" to "com.reddit.frontpage"
+            "Reddit" to "com.reddit.frontpage",
+            "Mở bằng Web (Để trống)" to ""
         )
     )
 }
 
-/**
- * Kết quả phân tích và dịch tự động URL đầu vào sang URI đích
- */
 data class TranslatedLinkResult(
-    val service: ServiceRoute,
+    val service: ServiceRoute?,
     val originalUrl: String,
     val normalizedHttpsUrl: String,
     val nativeSchemeUri: Uri?,
@@ -746,100 +730,91 @@ data class TranslatedLinkResult(
     val linkSubType: String
 )
 
-class RouterActivity : ComponentActivity() {
+/**
+ * RouterActivity kế thừa trực tiếp từ android.app.Activity với Theme.NoDisplay (như phiên bản đầu):
+ * - Không khởi tạo cửa sổ giao diện, chuyển tiếp siêu mượt trong vài mili-giây và gọi finish() ngay lập tức.
+ * - KHÔNG tự mở app mặc định khi chưa cài bản Mod.
+ * - KHÔNG hiển thị bảng báo lỗi "Không tìm thấy ứng dụng đích".
+ * - Nếu gói đích (ví dụ app.morphe.android.youtube) chưa được cài đặt trên máy:
+ *   tự động tắt luồng / vô hiệu hóa ComponentName của luồng đó và mở thẳng qua trình duyệt Web.
+ */
+class RouterActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleIncomingIntent(intent)
+        finish()
+    }
 
-        val incomingUri = extractIncomingUri(intent)
-        if (incomingUri == null) {
-            finish()
-            return
-        }
-
+    private fun handleIncomingIntent(incomingIntent: Intent?) {
+        val incomingUri = extractIncomingUri(incomingIntent) ?: return
         val translated = analyzeAndTranslateUri(incomingUri)
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val service = translated.service
 
-        // Kiểm tra xem người dùng có tắt luồng dịch vụ này để tránh đụng hàng hay không
-        val isRouteEnabled = prefs.getBoolean(
-            prefKeyRouteEnabled(translated.service),
-            translated.service.defaultEnabled
-        )
-        if (!isRouteEnabled) {
-            launchSystemDefaultOrBrowser(translated.normalizedHttpsUrl)
-            finish()
+        if (service == null) {
+            openDirectlyInExternalBrowser(translated.normalizedHttpsUrl)
             return
         }
 
-        val targetPackage = resolveTargetPackageForLink(prefs, translated)
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val isRouteEnabled = prefs.getBoolean(
+            prefKeyRouteEnabled(service),
+            service.defaultEnabled
+        )
+
+        if (!isRouteEnabled) {
+            openDirectlyInExternalBrowser(translated.normalizedHttpsUrl)
+            return
+        }
+
+        val targetPackage = resolveTargetPackageForLink(prefs, service, translated.linkSubType)
         val useNativeScheme = prefs.getBoolean(KEY_USE_NATIVE_SCHEME, ${config.preferNativeSchemeDefault})
 
-        // Lưu nhật ký điều hướng gần nhất
         prefs.edit()
             .putString(KEY_LAST_DISPATCHED_URL, translated.normalizedHttpsUrl)
-            .putString(KEY_LAST_VIDEO_ID, translated.extractedId ?: translated.service.title)
+            .putString(KEY_LAST_VIDEO_ID, translated.extractedId ?: service.title)
             .putInt(KEY_DISPATCH_COUNT, prefs.getInt(KEY_DISPATCH_COUNT, 0) + 1)
             .apply()
 
-        // Bước 1: Tự động dịch và bắn thẳng tới ứng dụng đích
+        if (targetPackage.isBlank()) {
+            openDirectlyInExternalBrowser(translated.normalizedHttpsUrl)
+            return
+        }
+
+        // Nếu gói đích (ví dụ app.morphe.android.youtube) chưa cài đặt:
+        // Tự động tắt luồng, vô hiệu hóa ComponentName của luồng đó và mở thẳng qua trình duyệt
+        if (!isPackageInstalled(targetPackage)) {
+            disableRouteAndAliasSilently(prefs, service)
+            openDirectlyInExternalBrowser(translated.normalizedHttpsUrl)
+            return
+        }
+
         val launched = tryLaunchTargetPackage(
             translated = translated,
             targetPackage = targetPackage,
             preferNativeScheme = useNativeScheme
         )
 
-        if (launched) {
-            finish()
-            return
+        if (!launched) {
+            disableRouteAndAliasSilently(prefs, service)
+            openDirectlyInExternalBrowser(translated.normalizedHttpsUrl)
         }
+    }
 
-        // Bước 2: Nếu gói đích chưa cài đặt, tự động fallback sang App Mặc định nếu người dùng cho phép
-        val autoFallbackOfficial = prefs.getBoolean(KEY_AUTO_FALLBACK_OFFICIAL, ${config.autoFallbackOfficial})
-        if (autoFallbackOfficial && targetPackage != translated.service.officialPackage) {
-            val officialLaunched = tryLaunchTargetPackage(
-                translated = translated,
-                targetPackage = translated.service.officialPackage,
-                preferNativeScheme = false
+    private fun disableRouteAndAliasSilently(
+        prefs: android.content.SharedPreferences,
+        service: ServiceRoute
+    ) {
+        prefs.edit().putBoolean(prefKeyRouteEnabled(service), false).apply()
+        try {
+            val componentName = ComponentName(packageName, service.aliasClassName)
+            packageManager.setComponentEnabledSetting(
+                componentName,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
             )
-            if (officialLaunched) {
-                finish()
-                return
-            }
-        }
-
-        // Bước 3: Hiển thị ModalBottomSheet Compose Material 3 để người dùng chọn
-        val installedSuggestions = translated.service.suggestedPackages
-            .map { it.second }
-            .distinct()
-            .filter { pkg -> pkg != targetPackage && isPackageInstalled(pkg) }
-
-        setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
-                FallbackBottomSheet(
-                    translated = translated,
-                    missingPackage = targetPackage,
-                    installedAlternatives = installedSuggestions,
-                    onSelectPackage = { chosenPkg ->
-                        tryLaunchTargetPackage(translated, chosenPkg, preferNativeScheme = false)
-                        finish()
-                    },
-                    onOpenNativeScheme = {
-                        launchImplicitNativeOrBrowser(translated, forceBrowser = false)
-                        finish()
-                    },
-                    onOpenBrowser = {
-                        launchImplicitNativeOrBrowser(translated, forceBrowser = true)
-                        finish()
-                    },
-                    onOpenSettings = {
-                        startActivity(Intent(this@RouterActivity, MainActivity::class.java))
-                        finish()
-                    },
-                    onDismiss = {
-                        finish()
-                    }
-                )
-            }
+        } catch (_: Exception) {
+            // Bỏ qua
         }
     }
 
@@ -858,10 +833,6 @@ class RouterActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Tự động nhận diện tên miền (YouTube Music, YouTube Video, Spotify, Facebook, TikTok, IG, X...)
-     * và dịch sang cả URL chuẩn lẫn Native Deep Link Scheme tương ứng.
-     */
     private fun analyzeAndTranslateUri(rawUri: Uri): TranslatedLinkResult {
         var workingUri = rawUri
         if (workingUri.path == "/attribution_link") {
@@ -881,14 +852,13 @@ class RouterActivity : ComponentActivity() {
         }
         val httpsString = httpsUri.toString()
 
-        // 1. Luồng riêng cho YOUTUBE MUSIC (music.youtube.com)
         if (host == "music.youtube.com") {
             val videoId = workingUri.getQueryParameter("v")
             val playlistId = workingUri.getQueryParameter("list")
-            val nativeUri = when {
-                !videoId.isNullOrBlank() -> Uri.parse("vnd.youtube.music:$videoId")
-                else -> null
-            }
+            val nativeUri = if (!videoId.isNullOrBlank()) {
+                Uri.parse("vnd.youtube.music:$videoId")
+            } else null
+
             return TranslatedLinkResult(
                 service = ServiceRoute.YOUTUBE_MUSIC,
                 originalUrl = rawUri.toString(),
@@ -899,7 +869,54 @@ class RouterActivity : ComponentActivity() {
             )
         }
 
-        // 2. Luồng cho SPOTIFY (open.spotify.com, spotify.link, spoti.fi)
+        if (
+            host == "youtube.com" ||
+            host == "www.youtube.com" ||
+            host == "m.youtube.com" ||
+            host == "youtu.be"
+        ) {
+            var videoId: String? = null
+            var subType = "WATCH"
+            when {
+                host == "youtu.be" -> {
+                    videoId = segments.firstOrNull()
+                    subType = "SHORTLINK"
+                }
+                firstSegment == "watch" -> {
+                    videoId = workingUri.getQueryParameter("v")
+                    subType = "WATCH"
+                }
+                firstSegment == "shorts" -> {
+                    videoId = segments.getOrNull(1)
+                    subType = "SHORTS"
+                }
+                firstSegment == "live" -> {
+                    videoId = segments.getOrNull(1)
+                    subType = "LIVE"
+                }
+                firstSegment == "playlist" -> {
+                    subType = "PLAYLIST"
+                }
+                else -> {
+                    videoId = workingUri.getQueryParameter("v")
+                }
+            }
+            val timestamp = workingUri.getQueryParameter("t") ?: workingUri.getQueryParameter("start")
+            val vndUri = if (!videoId.isNullOrBlank()) {
+                val base = "vnd.youtube:$videoId"
+                Uri.parse(if (!timestamp.isNullOrBlank()) "$base?t=$timestamp" else base)
+            } else null
+
+            return TranslatedLinkResult(
+                service = ServiceRoute.YOUTUBE_VIDEO,
+                originalUrl = rawUri.toString(),
+                normalizedHttpsUrl = httpsString,
+                nativeSchemeUri = vndUri,
+                extractedId = videoId ?: workingUri.getQueryParameter("list"),
+                linkSubType = subType
+            )
+        }
+
         if (host.contains("spotify.com") || host == "spotify.link" || host == "spoti.fi") {
             val validSpotifyTypes = setOf("track", "album", "playlist", "artist", "episode", "show")
             val resourceType = firstSegment.takeIf { it in validSpotifyTypes }
@@ -918,7 +935,6 @@ class RouterActivity : ComponentActivity() {
             )
         }
 
-        // 3. Luồng cho FACEBOOK (facebook.com, m.facebook.com, fb.watch, fb.com)
         if (host.contains("facebook.com") || host == "fb.watch" || host == "fb.com") {
             val encodedHref = Uri.encode(httpsString)
             val fbNativeUri = Uri.parse("fb://facewebmodal/f?href=$encodedHref")
@@ -933,7 +949,6 @@ class RouterActivity : ComponentActivity() {
             )
         }
 
-        // 4. Luồng cho MẠNG XÃ HỘI KHÁC (TikTok, Instagram, Threads, X/Twitter, Reddit)
         if (
             host.contains("tiktok.com") ||
             host.contains("instagram.com") ||
@@ -959,60 +974,29 @@ class RouterActivity : ComponentActivity() {
             )
         }
 
-        // 5. Mặc định: YOUTUBE VIDEO
-        var videoId: String? = null
-        var subType = "WATCH"
-        when {
-            host == "youtu.be" -> {
-                videoId = segments.firstOrNull()
-                subType = "SHORTLINK"
-            }
-            firstSegment == "watch" -> {
-                videoId = workingUri.getQueryParameter("v")
-                subType = "WATCH"
-            }
-            firstSegment == "shorts" -> {
-                videoId = segments.getOrNull(1)
-                subType = "SHORTS"
-            }
-            firstSegment == "live" -> {
-                videoId = segments.getOrNull(1)
-                subType = "LIVE"
-            }
-            firstSegment == "playlist" -> {
-                subType = "PLAYLIST"
-            }
-            else -> {
-                videoId = workingUri.getQueryParameter("v")
-            }
-        }
-        val timestamp = workingUri.getQueryParameter("t") ?: workingUri.getQueryParameter("start")
-        val vndUri = if (!videoId.isNullOrBlank()) {
-            val base = "vnd.youtube:$videoId"
-            Uri.parse(if (!timestamp.isNullOrBlank()) "$base?t=$timestamp" else base)
-        } else null
-
         return TranslatedLinkResult(
-            service = ServiceRoute.YOUTUBE_VIDEO,
+            service = null,
             originalUrl = rawUri.toString(),
             normalizedHttpsUrl = httpsString,
-            nativeSchemeUri = vndUri,
-            extractedId = videoId ?: workingUri.getQueryParameter("list"),
-            linkSubType = subType
+            nativeSchemeUri = null,
+            extractedId = null,
+            linkSubType = "GENERIC_WEB"
         )
     }
 
     private fun resolveTargetPackageForLink(
         prefs: android.content.SharedPreferences,
-        translated: TranslatedLinkResult
+        service: ServiceRoute,
+        linkSubType: String
     ): String {
-        val configured = prefs.getString(
-            prefKeyRoutePackage(translated.service),
-            translated.service.defaultPackage
-        )?.trim().takeUnless { it.isNullOrEmpty() } ?: translated.service.defaultPackage
+        val rawSaved = prefs.getString(prefKeyRoutePackage(service), service.defaultPackage)
+        if (rawSaved != null && rawSaved.trim().isEmpty()) {
+            return ""
+        }
+        val configured = rawSaved?.trim() ?: service.defaultPackage
 
-        if (translated.service == ServiceRoute.SOCIAL_MEDIA && configured == ServiceRoute.SOCIAL_MEDIA.defaultPackage) {
-            return when (translated.linkSubType) {
+        if (service == ServiceRoute.SOCIAL_MEDIA && configured == ServiceRoute.SOCIAL_MEDIA.defaultPackage) {
+            return when (linkSubType) {
                 "INSTAGRAM" -> if (isPackageInstalled("com.instander.android")) "com.instander.android" else "com.instagram.android"
                 "THREADS" -> "com.instagram.barcelona"
                 "X_TWITTER" -> "com.twitter.android"
@@ -1049,53 +1033,61 @@ class RouterActivity : ComponentActivity() {
             } catch (_: ActivityNotFoundException) {
                 // Thử URI kế tiếp
             } catch (_: Exception) {
-                // Bỏ qua
+                // Tiếp tục
             }
         }
         return false
     }
 
-    private fun launchImplicitNativeOrBrowser(translated: TranslatedLinkResult, forceBrowser: Boolean) {
-        if (!forceBrowser && translated.nativeSchemeUri != null) {
-            try {
-                startActivity(
-                    Intent(Intent.ACTION_VIEW, translated.nativeSchemeUri).apply {
+    private fun openDirectlyInExternalBrowser(httpsUrl: String) {
+        val uri = Uri.parse(httpsUrl)
+        val knownBrowsers = listOf(
+            "com.android.chrome",
+            "com.brave.browser",
+            "org.mozilla.firefox",
+            "com.microsoft.emmx",
+            "com.sec.android.app.sbrowser",
+            "com.opera.browser"
+        )
+
+        for (browserPkg in knownBrowsers) {
+            if (isPackageInstalled(browserPkg)) {
+                try {
+                    val directBrowserIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                        setPackage(browserPkg)
+                        addCategory(Intent.CATEGORY_BROWSABLE)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
-                )
-                return
-            } catch (_: Exception) {
-                // Chuyển xuống mở trình duyệt
+                    startActivity(directBrowserIntent)
+                    return
+                } catch (_: Exception) {
+                    // Thử trình duyệt tiếp theo
+                }
             }
         }
-        launchSystemDefaultOrBrowser(translated.normalizedHttpsUrl)
-    }
 
-    private fun launchSystemDefaultOrBrowser(httpsUrl: String) {
         try {
-            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(httpsUrl)).apply {
+            val genericIntent = Intent(Intent.ACTION_VIEW, uri).apply {
                 addCategory(Intent.CATEGORY_BROWSABLE)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            startActivity(
-                Intent.createChooser(browserIntent, "Chọn ứng dụng để mở liên kết")
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
+            startActivity(genericIntent)
         } catch (_: Exception) {
-            // Bỏ qua
+            // Không hiển thị bảng báo lỗi
         }
     }
 
-    private fun isPackageInstalled(packageName: String): Boolean {
+    private fun isPackageInstalled(targetPkg: String): Boolean {
+        if (targetPkg.isBlank()) return false
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 packageManager.getPackageInfo(
-                    packageName,
+                    targetPkg,
                     PackageManager.PackageInfoFlags.of(0)
                 )
             } else {
                 @Suppress("DEPRECATION")
-                packageManager.getPackageInfo(packageName, 0)
+                packageManager.getPackageInfo(targetPkg, 0)
             }
             true
         } catch (_: PackageManager.NameNotFoundException) {
@@ -1106,7 +1098,6 @@ class RouterActivity : ComponentActivity() {
     companion object {
         const val PREFS_NAME = "link_dispatcher_prefs"
         const val KEY_USE_NATIVE_SCHEME = "use_vnd_scheme"
-        const val KEY_AUTO_FALLBACK_OFFICIAL = "auto_fallback_official"
         const val KEY_WALLPAPER_STYLE = "wallpaper_style"
         const val KEY_LAST_DISPATCHED_URL = "last_dispatched_url"
         const val KEY_LAST_VIDEO_ID = "last_video_id"
@@ -1118,111 +1109,6 @@ class RouterActivity : ComponentActivity() {
 
         private val URL_EXTRACT_PATTERN: Pattern =
             Pattern.compile("(https?://[\\\\w\\\\-._~:/?#\\\\[\\\\]@!$&'()*+,;=%]+)")
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FallbackBottomSheet(
-    translated: TranslatedLinkResult,
-    missingPackage: String,
-    installedAlternatives: List<String>,
-    onSelectPackage: (String) -> Unit,
-    onOpenNativeScheme: () -> Unit,
-    onOpenBrowser: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Không tìm thấy ứng dụng đích (\${translated.service.title})",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Text(
-                text = "Gói đã cấu hình \\"$missingPackage\\" hiện chưa được cài đặt. Bạn có thể mở ngay bằng ứng dụng mặc định, ứng dụng thay thế hoặc tắt luồng này nếu bị đụng hàng.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = "URL: \${translated.normalizedHttpsUrl}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace
-                )
-                if (translated.nativeSchemeUri != null) {
-                    Text(
-                        text = "Native URI: \${translated.nativeSchemeUri}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            HorizontalDivider()
-
-            if (installedAlternatives.isNotEmpty()) {
-                Text(
-                    text = "Ứng dụng tương thích phát hiện trên thiết bị:",
-                    style = MaterialTheme.typography.labelLarge
-                )
-                installedAlternatives.forEach { altPkg ->
-                    Button(
-                        onClick = { onSelectPackage(altPkg) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Mở bằng $altPkg")
-                    }
-                }
-            }
-
-            if (translated.nativeSchemeUri != null) {
-                OutlinedButton(
-                    onClick = onOpenNativeScheme,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Mở qua giao thức \${translated.nativeSchemeUri}")
-                }
-            }
-
-            OutlinedButton(
-                onClick = onOpenBrowser,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Mở qua Trình duyệt hoặc Bộ chọn hệ thống")
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                TextButton(onClick = onOpenSettings) {
-                    Text("Cấu hình / Tắt luồng này")
-                }
-                TextButton(onClick = onDismiss) {
-                    Text("Đóng")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-        }
     }
 }`;
 
@@ -1301,10 +1187,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/**
- * Hình nền đồ họa đa lớp (Atmospheric Mesh & Wave Canvas Background)
- * cho phép người dùng đổi chủ đề hình nền ngay trong ứng dụng.
- */
 @Composable
 fun AtmosphericAppBackground(
     wallpaperStyle: String,
@@ -1375,6 +1257,23 @@ fun AtmosphericAppBackground(
     }
 }
 
+@Composable
+fun AppLogoBadge() {
+    Canvas(
+        modifier = Modifier
+            .padding(end = 10.dp)
+            .background(Color(0xFF0B2228), shape = MaterialTheme.shapes.small)
+            .padding(6.dp)
+    ) {
+        val w = 28.dp.toPx()
+        drawCircle(
+            color = Color(0xFF10B981),
+            radius = w * 0.42f,
+            style = Stroke(width = 2.dp.toPx())
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DispatcherMainScreen() {
@@ -1391,14 +1290,8 @@ fun DispatcherMainScreen() {
         )
     }
 
-    var autoFallbackOfficial by remember {
-        mutableStateOf(
-            prefs.getBoolean(RouterActivity.KEY_AUTO_FALLBACK_OFFICIAL, ${config.autoFallbackOfficial})
-        )
-    }
-
     var testUrl by remember {
-        mutableStateOf("https://music.youtube.com/watch?v=dQw4w9WgXcQ")
+        mutableStateOf("")
     }
 
     var dispatchCount by remember {
@@ -1410,17 +1303,6 @@ fun DispatcherMainScreen() {
             prefs.getString(RouterActivity.KEY_LAST_DISPATCHED_URL, "Chưa có liên kết nào")
                 ?: "Chưa có liên kết nào"
         )
-    }
-
-    val routeEnabledMap = remember {
-        mutableStateMapOf<ServiceRoute, Boolean>().apply {
-            ServiceRoute.entries.forEach { route ->
-                put(
-                    route,
-                    prefs.getBoolean(RouterActivity.prefKeyRouteEnabled(route), route.defaultEnabled)
-                )
-            }
-        }
     }
 
     val routePackageMap = remember {
@@ -1435,6 +1317,26 @@ fun DispatcherMainScreen() {
         }
     }
 
+    val routeEnabledMap = remember {
+        mutableStateMapOf<ServiceRoute, Boolean>().apply {
+            ServiceRoute.entries.forEach { route ->
+                val pkg = routePackageMap[route] ?: route.defaultPackage
+                val pkgInstalledOrWeb = pkg.isBlank() || checkPackageInstalled(context, pkg)
+                val savedEnabled = prefs.getBoolean(
+                    RouterActivity.prefKeyRouteEnabled(route),
+                    route.defaultEnabled
+                )
+                val effectiveEnabled = if (!pkgInstalledOrWeb) {
+                    setRouteComponentEnabled(context, prefs, route, false)
+                    false
+                } else {
+                    savedEnabled
+                }
+                put(route, effectiveEnabled)
+            }
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -1443,6 +1345,20 @@ fun DispatcherMainScreen() {
                     RouterActivity.KEY_LAST_DISPATCHED_URL,
                     "Chưa có liên kết nào"
                 ) ?: "Chưa có liên kết nào"
+
+                ServiceRoute.entries.forEach { route ->
+                    val currentPkg = routePackageMap[route] ?: route.defaultPackage
+                    val isValid = currentPkg.isBlank() || checkPackageInstalled(context, currentPkg)
+                    if (!isValid && routeEnabledMap[route] == true) {
+                        routeEnabledMap[route] = false
+                        setRouteComponentEnabled(context, prefs, route, false)
+                    } else {
+                        routeEnabledMap[route] = prefs.getBoolean(
+                            RouterActivity.prefKeyRouteEnabled(route),
+                            false
+                        )
+                    }
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -1457,17 +1373,20 @@ fun DispatcherMainScreen() {
             topBar = {
                 TopAppBar(
                     title = {
-                        Column {
-                            Text(
-                                text = "${config.appName}",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Điều hướng thông minh YouTube, YT Music, Spotify & Mạng xã hội",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AppLogoBadge()
+                            Column {
+                                Text(
+                                    text = "${config.appName}",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Điều hướng siêu mượt (Theme.NoDisplay & Default Browser)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -1484,7 +1403,7 @@ fun DispatcherMainScreen() {
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // CARD 0: CHỌN HÌNH NỀN & TÙY CHỌN MẶC ĐỊNH
+                // CARD 0: CHỌN HÌNH NỀN
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -1496,7 +1415,7 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Giao diện Hình nền & Tùy chọn chung",
+                            text = "Chủ đề Hình nền Ứng dụng",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -1522,42 +1441,14 @@ fun DispatcherMainScreen() {
                                 )
                             }
                         }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Tự động mở App Mặc định nếu chưa cài bản Mod",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "Nếu gói Mod chưa cài, tự chuyển về YouTube / YT Music / Spotify chính thức",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = autoFallbackOfficial,
-                                onCheckedChange = { checked ->
-                                    autoFallbackOfficial = checked
-                                    prefs.edit()
-                                        .putBoolean(RouterActivity.KEY_AUTO_FALLBACK_OFFICIAL, checked)
-                                        .apply()
-                                }
-                            )
-                        }
                     }
                 }
 
-                // DANH SÁCH CẤU HÌNH TỪNG LUỒNG DỊCH VỤ (CÓ CÔNG TẮC BẬT/TẮT RIÊNG)
+                // DANH SÁCH CẤU HÌNH TỪNG LUỒNG DỊCH VỤ
                 ServiceRoute.entries.forEachIndexed { index, route ->
-                    val isEnabled = routeEnabledMap[route] ?: true
                     val currentPkg = routePackageMap[route] ?: route.defaultPackage
-                    val isInstalled = checkPackageInstalled(context, currentPkg)
+                    val isInstalled = currentPkg.isNotBlank() && checkPackageInstalled(context, currentPkg)
+                    val isEnabled = routeEnabledMap[route] ?: false
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -1581,10 +1472,13 @@ fun DispatcherMainScreen() {
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
-                                        text = if (isEnabled) {
-                                            "Đang kích hoạt đón bắt liên kết"
-                                        } else {
-                                            "Đã tắt (Không can thiệp, nhường quyền cho App đã đặt)"
+                                        text = when {
+                                            !isEnabled && currentPkg.isNotBlank() && !isInstalled ->
+                                                "Đã tự động tắt luồng (Chưa cài $currentPkg -> Mở thẳng bằng Trình duyệt)"
+                                            isEnabled ->
+                                                "Đang bật đón bắt liên kết"
+                                            else ->
+                                                "Đã tắt (ComponentName đã vô hiệu hóa)"
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = if (isEnabled) {
@@ -1597,71 +1491,86 @@ fun DispatcherMainScreen() {
 
                                 Switch(
                                     checked = isEnabled,
-                                    onCheckedChange = { enabled ->
-                                        routeEnabledMap[route] = enabled
-                                        setRouteComponentEnabled(context, prefs, route, enabled)
+                                    onCheckedChange = { requestedEnable ->
+                                        if (requestedEnable && currentPkg.isNotBlank() && !checkPackageInstalled(context, currentPkg)) {
+                                            routeEnabledMap[route] = false
+                                            setRouteComponentEnabled(context, prefs, route, false)
+                                        } else {
+                                            routeEnabledMap[route] = requestedEnable
+                                            setRouteComponentEnabled(context, prefs, route, requestedEnable)
+                                        }
                                     }
                                 )
                             }
 
-                            if (isEnabled) {
-                                Text(
-                                    text = "Chọn nhanh bản Mod, App Mặc định hoặc nhập Package bất kỳ:",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Text(
+                                text = "Chọn nhanh Package đích hoặc để trống để mở bằng Trình duyệt:",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
 
-                                FlowRow(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    route.suggestedPackages.forEach { (label, pkg) ->
-                                        FilterChip(
-                                            selected = currentPkg == pkg,
-                                            onClick = {
-                                                routePackageMap[route] = pkg
-                                                prefs.edit()
-                                                    .putString(RouterActivity.prefKeyRoutePackage(route), pkg)
-                                                    .apply()
-                                            },
-                                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
-                                        )
-                                    }
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                route.suggestedPackages.forEach { (label, pkg) ->
+                                    FilterChip(
+                                        selected = currentPkg == pkg,
+                                        onClick = {
+                                            routePackageMap[route] = pkg
+                                            prefs.edit()
+                                                .putString(RouterActivity.prefKeyRoutePackage(route), pkg)
+                                                .apply()
+                                            val valid = pkg.isBlank() || checkPackageInstalled(context, pkg)
+                                            routeEnabledMap[route] = valid
+                                            setRouteComponentEnabled(context, prefs, route, valid)
+                                        },
+                                        label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                    )
                                 }
-
-                                OutlinedTextField(
-                                    value = currentPkg,
-                                    onValueChange = { value ->
-                                        val cleaned = value.trim()
-                                        routePackageMap[route] = cleaned
-                                        prefs.edit()
-                                            .putString(RouterActivity.prefKeyRoutePackage(route), cleaned)
-                                            .apply()
-                                    },
-                                    label = { Text("Package Name đích (Tự nhập app bất kỳ)") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                Text(
-                                    text = if (isInstalled) {
-                                        "Đã tìm thấy gói \\"$currentPkg\\" trên máy"
-                                    } else {
-                                        "Chưa phát hiện \\"$currentPkg\\" (Sẽ tự chuyển sang App mặc định hoặc bật hộp chọn)"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (isInstalled) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.error
-                                    }
-                                )
                             }
+
+                            OutlinedTextField(
+                                value = currentPkg,
+                                onValueChange = { value ->
+                                    val cleaned = value.trim()
+                                    routePackageMap[route] = cleaned
+                                    prefs.edit()
+                                        .putString(RouterActivity.prefKeyRoutePackage(route), cleaned)
+                                        .apply()
+                                    val valid = cleaned.isBlank() || checkPackageInstalled(context, cleaned)
+                                    if (!valid) {
+                                        routeEnabledMap[route] = false
+                                        setRouteComponentEnabled(context, prefs, route, false)
+                                    }
+                                },
+                                label = { Text("Package Name đích (Để trống = Mở bằng Web)") },
+                                placeholder = { Text("Để trống để mở qua trình duyệt Web") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Text(
+                                text = when {
+                                    currentPkg.isBlank() ->
+                                        "Chế độ Web: Đang để trống Package (Mở thẳng qua Trình duyệt)"
+                                    isInstalled ->
+                                        "Đã cài đặt \\"$currentPkg\\" trên thiết bị"
+                                    else ->
+                                        "Chưa cài \\"$currentPkg\\" -> Đã tự động vô hiệu hóa luồng & mở thẳng qua Trình duyệt"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (currentPkg.isBlank() || isInstalled) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
                         }
                     }
                 }
 
-                // CARD CẤP QUYỀN MỞ THEO MẶC ĐỊNH
+                // CARD CẤP QUYỀN MỞ THEO MẶC ĐỊNH / DEFAULT BROWSER
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -1673,12 +1582,12 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Cài đặt 'Mở theo mặc định' của Hệ thống",
+                            text = "Cài đặt 'Mở theo mặc định' / Trình duyệt mặc định",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "Mở phần cài đặt liên kết mặc định của Android để tích chọn các tên miền bạn muốn ứng dụng tự động xử lý.",
+                            text = "Nhờ hỗ trợ cả bộ lọc BROWSABLE http/https lẫn autoVerify, bạn có thể bật 'Mở đường liên kết được hỗ trợ' hoặc chọn làm ứng dụng điều hướng liên kết mặc định mượt như phiên bản đầu.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1688,10 +1597,16 @@ fun DispatcherMainScreen() {
                         ) {
                             Text("Mở màn hình 'Mở theo mặc định' (Open by default)")
                         }
+                        OutlinedButton(
+                            onClick = { openDefaultAppsSettings(context) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Mở cài đặt 'Ứng dụng mặc định' (Default Apps)")
+                        }
                     }
                 }
 
-                // CARD KIỂM TRA NHANH INTENT ĐA NỀN TẢNG
+                // CARD KIỂM TRA NHANH INTENT
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -1703,7 +1618,7 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Kiểm tra nhanh Chuyển tiếp Đa nền tảng",
+                            text = "Kiểm tra nhanh Chuyển tiếp",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -1711,30 +1626,10 @@ fun DispatcherMainScreen() {
                         OutlinedTextField(
                             value = testUrl,
                             onValueChange = { testUrl = it },
-                            label = { Text("Nhập link YouTube, YT Music, Spotify, Facebook, TikTok...") },
+                            label = { Text("Nhập link cần thử nghiệm (Để trống mặc định)") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
-
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { testUrl = "https://music.youtube.com/watch?v=dQw4w9WgXcQ" }
-                            ) {
-                                Text("Mẫu YT Music")
-                            }
-                            OutlinedButton(
-                                onClick = { testUrl = "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT" }
-                            ) {
-                                Text("Mẫu Spotify")
-                            }
-                            OutlinedButton(
-                                onClick = { testUrl = "https://fb.watch/v123456789/" }
-                            ) {
-                                Text("Mẫu Facebook")
-                            }
-                        }
 
                         Button(
                             onClick = {
@@ -1832,6 +1727,14 @@ private fun openSystemDefaultLinksSettings(context: Context) {
             ).show()
         }
     }
+}
+
+private fun openDefaultAppsSettings(context: Context) {
+    try {
+        context.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+    } catch (_: Exception) {
+        openSystemDefaultLinksSettings(context)
+    }
 }`;
 
   const appBuildGradleKts = `plugins {
@@ -1848,8 +1751,8 @@ android {
         applicationId = "${config.applicationId}"
         minSdk = ${config.minSdk}
         targetSdk = ${config.targetSdk}
-        versionCode = 2
-        versionName = "2.0.0"
+        versionCode = 3
+        versionName = "3.0.0"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -1906,8 +1809,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
 }`;
 
-  const rootBuildGradleKts = `// Top-level build file where you can add configuration options common to all sub-projects/modules.
-plugins {
+  const rootBuildGradleKts = `plugins {
     id("com.android.application") version "8.5.2" apply false
     id("org.jetbrains.kotlin.android") version "2.0.20" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.0.20" apply false
@@ -2001,14 +1903,14 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.0.\${{ github.run_number }}
-          name: "${config.appName} Multi-Platform APK #\${{ github.run_number }}"
+          tag_name: v3.0.\${{ github.run_number }}
+          name: "${config.appName} APK #\${{ github.run_number }}"
           body: |
-            ### Bản dựng tự động ${config.appName} (Multi-Platform Router)
-            - **YouTube Video:** \`${ytVideo.targetPackage}\` (${ytVideo.enabled ? 'Đang bật' : 'Đã tắt'})
-            - **YouTube Music:** \`${ytMusic.targetPackage}\` (${ytMusic.enabled ? 'Đang bật' : 'Đã tắt'})
-            - **Spotify:** \`${spotify.targetPackage}\` (${spotify.enabled ? 'Đang bật' : 'Đã tắt'})
-            - **Facebook & MXH:** \`${facebook.targetPackage}\` (${facebook.enabled ? 'Đang bật' : 'Đã tắt'})
+            ### Bản dựng tự động ${config.appName} (Theme.NoDisplay & Default Browser)
+            - **YouTube Video:** \`${ytVideo.targetPackage || 'Web Browser'}\`
+            - **YouTube Music:** \`${ytMusic.targetPackage || 'Web Browser'}\`
+            - **Spotify:** \`${spotify.targetPackage || 'Web Browser'}\`
+            - **Facebook & MXH:** \`${facebook.targetPackage || 'Web Browser'}\`
           files: app/build/outputs/apk/debug/app-debug.apk
           draft: false
           prerelease: false
@@ -2088,7 +1990,7 @@ jobs:
       language: 'xml',
       category: 'core',
       description:
-        'Khai báo Logo (@mipmap/ic_launcher) cùng 5 <activity-alias> độc lập cho YouTube Video, YouTube Music (music.youtube.com), Spotify, Facebook và Mạng xã hội.',
+        'RouterActivity dùng Theme.NoDisplay kèm bộ lọc Default Browser (http/https BROWSABLE) và pathPattern=".*" trên 5 <activity-alias> để bắt link mặc định siêu mượt như phiên bản đầu.',
       content: manifestXml,
     },
     {
@@ -2097,7 +1999,7 @@ jobs:
       language: 'kotlin',
       category: 'core',
       description:
-        'Tự động dịch liên kết YouTube, YouTube Music, Spotify, Facebook và MXH; hỗ trợ cả App Mod, App Mặc định, Package tùy chỉnh và chế độ để trống mở bằng Web.',
+        'Kế thừa android.app.Activity (Theme.NoDisplay): Không tự mở app mặc định; nếu chưa cài bản Mod sẽ tự động tắt ComponentName của luồng đó và mở thẳng qua trình duyệt mà không hiện bảng lỗi.',
       content: routerActivityKt,
     },
     {
@@ -2106,7 +2008,7 @@ jobs:
       language: 'kotlin',
       category: 'core',
       description:
-        'Giao diện Compose Material 3 có Logo, Hình nền đồ họa đa lớp (AtmosphericAppBackground), công tắc Bật/Tắt từng dịch vụ và chế độ để trống cho phần Web.',
+        'Giao diện Compose Material 3 có Logo, Hình nền đa lớp, tự động vô hiệu hóa ComponentName nếu gói đích chưa cài đặt, và nút mở cài đặt Default Apps / Open by default.',
       content: mainActivityKt,
     },
     {
@@ -2173,8 +2075,8 @@ jobs:
       path: 'gradle.properties',
       title: 'gradle.properties',
       language: 'properties',
-      category: 'gradle',
       description: 'Khai báo thuộc tính JVM Args, AndroidX và Non-Transitive R Class.',
+      category: 'gradle',
       content: gradleProperties,
     },
     {
