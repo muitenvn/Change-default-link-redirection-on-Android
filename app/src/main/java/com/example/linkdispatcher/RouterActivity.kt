@@ -55,7 +55,8 @@ enum class ServiceRoute(
             "YouTube ReVanced (Mod)" to "app.revanced.android.youtube",
             "RVX YouTube (Mod)" to "app.rvx.android.youtube",
             "YouTube Mặc định (Official)" to "com.google.android.youtube",
-            "NewPipe" to "org.schabi.newpipe"
+            "NewPipe" to "org.schabi.newpipe",
+            "Mở bằng Web (Để trống)" to ""
         )
     ),
     YOUTUBE_MUSIC(
@@ -68,7 +69,8 @@ enum class ServiceRoute(
             "RVX Music (Mod)" to "app.rvx.android.apps.youtube.music",
             "ReVanced Music (Mod)" to "app.revanced.android.apps.youtube.music",
             "Morphe Music (Mod)" to "app.morphe.android.apps.youtube.music",
-            "YouTube Music Mặc định" to "com.google.android.apps.youtube.music"
+            "YouTube Music Mặc định" to "com.google.android.apps.youtube.music",
+            "Mở bằng Web (Để trống)" to ""
         )
     ),
     SPOTIFY(
@@ -80,7 +82,8 @@ enum class ServiceRoute(
         suggestedPackages = listOf(
             "Spotify Mặc định / xManager" to "com.spotify.music",
             "Spotify Lite" to "com.spotify.lite",
-            "Spotube (Open Source)" to "oss.krtirtho.spotube"
+            "Spotube (Open Source)" to "oss.krtirtho.spotube",
+            "Mở bằng Web (Để trống)" to ""
         )
     ),
     FACEBOOK(
@@ -92,7 +95,8 @@ enum class ServiceRoute(
         suggestedPackages = listOf(
             "Facebook Mặc định" to "com.facebook.katana",
             "Facebook Lite" to "com.facebook.lite",
-            "SlimSocial for Facebook" to "it.rignanese.leo.slimfacebook"
+            "SlimSocial for Facebook" to "it.rignanese.leo.slimfacebook",
+            "Mở bằng Web (Để trống)" to ""
         )
     ),
     SOCIAL_MEDIA(
@@ -107,7 +111,8 @@ enum class ServiceRoute(
             "Instagram Mặc định" to "com.instagram.android",
             "Instander (IG Mod)" to "com.instander.android",
             "X / Twitter" to "com.twitter.android",
-            "Reddit Mặc định" to "com.reddit.frontpage"
+            "Reddit Mặc định" to "com.reddit.frontpage",
+            "Mở bằng Web (Để trống)" to ""
         )
     )
 }
@@ -156,6 +161,13 @@ class RouterActivity : ComponentActivity() {
             .putString(KEY_LAST_VIDEO_ID, translated.extractedId ?: translated.service.title)
             .putInt(KEY_DISPATCH_COUNT, prefs.getInt(KEY_DISPATCH_COUNT, 0) + 1)
             .apply()
+
+        // Nếu người dùng để trống Package (chế độ mở Web), chuyển thẳng ra Trình duyệt
+        if (targetPackage.isBlank()) {
+            launchSystemDefaultOrBrowser(translated.normalizedHttpsUrl)
+            finish()
+            return
+        }
 
         // Bước 1: Tự động dịch và bắn thẳng tới ứng dụng đích
         val launched = tryLaunchTargetPackage(
@@ -386,10 +398,15 @@ class RouterActivity : ComponentActivity() {
         prefs: android.content.SharedPreferences,
         translated: TranslatedLinkResult
     ): String {
-        val configured = prefs.getString(
+        val rawSaved = prefs.getString(
             prefKeyRoutePackage(translated.service),
             translated.service.defaultPackage
-        )?.trim().takeUnless { it.isNullOrEmpty() } ?: translated.service.defaultPackage
+        )
+        // Nếu người dùng chủ động để trống ("") cho phần Web, giữ nguyên chuỗi rỗng
+        if (rawSaved != null && rawSaved.trim().isEmpty()) {
+            return ""
+        }
+        val configured = rawSaved?.trim() ?: translated.service.defaultPackage
 
         // Hỗ trợ tự động chọn đúng app cho nhóm SOCIAL_MEDIA nếu người dùng chưa ghi đè package riêng
         if (translated.service == ServiceRoute.SOCIAL_MEDIA && configured == ServiceRoute.SOCIAL_MEDIA.defaultPackage) {

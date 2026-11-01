@@ -150,6 +150,43 @@ function AtmosphericSvgBackdrop({ themeId }: { themeId: WallpaperThemeId }) {
   );
 }
 
+function AppLauncherLogo({ className = 'w-9 h-9' }: { className?: string }) {
+  return (
+    <svg
+      className={`${className} rounded-xl shrink-0`}
+      viewBox="0 0 108 108"
+      fill="none"
+      aria-label="Link Dispatcher App Logo"
+    >
+      <defs>
+        <linearGradient id="logoBgGrad" x1="0" y1="0" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#07111E" />
+          <stop offset="55%" stopColor="#0C262B" />
+          <stop offset="100%" stopColor="#090D16" />
+        </linearGradient>
+      </defs>
+      <rect width="108" height="108" rx="24" fill="url(#logoBgGrad)" />
+      <circle cx="54" cy="54" r="38" fill="rgba(16, 185, 129, 0.12)" />
+      <polygon points="54,22 80,37 80,71 54,86 28,71 28,37" fill="#10B981" />
+      <polygon points="54,27 75.5,39.5 75.5,68.5 54,81 32.5,68.5 32.5,39.5" fill="#09131F" />
+      <polygon points="43,41 64,54 43,67" fill="#34D399" />
+      <path
+        d="M58 42 L70 42 L70 54"
+        stroke="#FFFFFF"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M56 56 L70 42"
+        stroke="#FFFFFF"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export default function App() {
   const [config, setConfig] = useState<ProjectConfig>({
     appName: 'Link Dispatcher',
@@ -172,8 +209,8 @@ export default function App() {
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [isExportingZip, setIsExportingZip] = useState(false);
 
-  // Simulator states
-  const [simUrlInput, setSimUrlInput] = useState<string>(SAMPLE_LINKS[0].url);
+  // Simulator states (Phần Web URL để trống mặc định)
+  const [simUrlInput, setSimUrlInput] = useState<string>('');
   const [simTargetPackageInstalled, setSimTargetPackageInstalled] = useState<boolean>(true);
   const [simPhoneScreen, setSimPhoneScreen] = useState<
     'main_activity' | 'router_success' | 'router_fallback' | 'system_open_by_default'
@@ -212,34 +249,6 @@ export default function App() {
     }));
   };
 
-  const handleDisableConflictingNonYoutubeRoutes = () => {
-    setConfig((prev) => ({
-      ...prev,
-      routes: {
-        ...prev.routes,
-        spotify: { ...prev.routes.spotify, enabled: false },
-        facebook: { ...prev.routes.facebook, enabled: false },
-        social_media: { ...prev.routes.social_media, enabled: false },
-      },
-    }));
-    setSimLastDispatchedToast(
-      'Đã tắt tự động các luồng Spotify, Facebook, MXH để không đụng hàng với app có sẵn trên máy!'
-    );
-  };
-
-  const handleEnableAllRoutes = () => {
-    setConfig((prev) => ({
-      ...prev,
-      routes: {
-        youtube_video: { ...prev.routes.youtube_video, enabled: true },
-        youtube_music: { ...prev.routes.youtube_music, enabled: true },
-        spotify: { ...prev.routes.spotify, enabled: true },
-        facebook: { ...prev.routes.facebook, enabled: true },
-        social_media: { ...prev.routes.social_media, enabled: true },
-      },
-    }));
-  };
-
   const handleCopyCode = async (content: string, pathKey: string) => {
     try {
       await navigator.clipboard.writeText(content);
@@ -269,6 +278,15 @@ export default function App() {
       projectFiles.forEach((file) => {
         zip.file(file.path, file.content);
       });
+      const launcherFile = projectFiles.find(
+        (f) => f.path === 'app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml'
+      );
+      if (launcherFile) {
+        zip.file(
+          'app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml',
+          launcherFile.content
+        );
+      }
       zip.file(
         'app/proguard-rules.pro',
         `-keep class ${config.applicationId}.** { *; }\n`
@@ -396,16 +414,17 @@ export default function App() {
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch border-b border-white/10 pb-10">
           <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
             <div className="space-y-3">
-              <div className="text-xs text-slate-300 flex flex-wrap items-center gap-2 font-mono">
-                <span>YouTube Video</span>
-                <span aria-hidden="true">·</span>
-                <span>YouTube Music</span>
-                <span aria-hidden="true">·</span>
-                <span>Spotify</span>
-                <span aria-hidden="true">·</span>
-                <span>Facebook &amp; MXH</span>
-                <span aria-hidden="true">·</span>
-                <span>Chống đụng hàng Activity-Alias</span>
+              <div className="flex items-center gap-3">
+                <AppLauncherLogo className="w-12 h-12 border border-emerald-400/30" />
+                <div className="text-xs text-slate-300 flex flex-wrap items-center gap-2 font-mono">
+                  <span>Adaptive Vector Logo</span>
+                  <span aria-hidden="true">·</span>
+                  <span>YouTube &amp; YT Music</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Spotify &amp; MXH</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Chế độ Web (Để trống)</span>
+                </div>
               </div>
               <h1
                 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight"
@@ -520,23 +539,6 @@ export default function App() {
                   {config.autoFallbackOfficial ? 'Đang BẬT' : 'Đang TẮT'}
                 </button>
               </div>
-
-              <div className="pt-2 border-t border-white/10 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleDisableConflictingNonYoutubeRoutes}
-                  className="flex-1 px-3 py-2 text-xs font-medium bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-amber-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  Tắt nhanh Spotify/MXH (Tránh đụng hàng)
-                </button>
-                <button
-                  type="button"
-                  onClick={handleEnableAllRoutes}
-                  className="px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  Bật tất cả 5 luồng
-                </button>
-              </div>
             </div>
           </div>
         </section>
@@ -599,7 +601,9 @@ export default function App() {
                   <div className="pt-2 border-t border-white/10">
                     <div className="text-[10px] text-slate-400">Đích hiện tại:</div>
                     <div className="text-xs font-mono text-emerald-300 truncate mt-0.5">
-                      {route.enabled ? route.targetPackage : 'Nhường App hệ thống'}
+                      {!route.enabled
+                        ? 'Đã tắt luồng'
+                        : route.targetPackage || 'Để trống (Mở bằng Web)'}
                     </div>
                   </div>
                 </div>
@@ -676,7 +680,7 @@ export default function App() {
 
               <div className="lg:col-span-5 space-y-2">
                 <label className="block text-xs font-medium text-slate-200">
-                  Hoặc tự nhập Package Name của bất kỳ ứng dụng nào khác:
+                  Nhập Package Name đích (Hoặc để trống nếu muốn mở bằng Web):
                 </label>
                 <input
                   type="text"
@@ -687,12 +691,13 @@ export default function App() {
                       targetPackage: e.target.value.trim(),
                     }))
                   }
-                  placeholder="Nhập package bất kỳ (VD: org.videolan.vlc, com.brave.browser...)"
+                  placeholder="Đang để trống (Sẽ mở trực tiếp qua trình duyệt Web)"
                   className="w-full px-3.5 py-2 text-xs font-mono bg-slate-900 border border-white/15 rounded-lg text-white focus:outline-none focus:border-emerald-400"
                 />
                 <div className="text-[11px] text-slate-400 font-mono">
-                  Giao thức dịch tự động: {activeRoute.nativeSchemeExample} · App mặc định:{' '}
-                  {activeRoute.officialPackage}
+                  {activeRoute.targetPackage
+                    ? `Giao thức: ${activeRoute.nativeSchemeExample}`
+                    : 'Đang để trống Package -> Mở thẳng bằng Trình duyệt Web'}
                 </div>
               </div>
             </div>
@@ -914,19 +919,14 @@ export default function App() {
               {simPhoneScreen === 'main_activity' && (
                 <div className="relative z-10 py-3 space-y-3 flex-1 flex flex-col justify-between">
                   <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <AppLauncherLogo className="w-8 h-8 border border-emerald-400/30" />
                       <div>
                         <div className="text-base font-bold text-white">{config.appName}</div>
                         <div className="text-[11px] text-slate-300">
                           Điều hướng YouTube, YT Music, Spotify &amp; MXH
                         </div>
                       </div>
-                      <button
-                        onClick={handleDisableConflictingNonYoutubeRoutes}
-                        className="px-2 py-1 text-[10px] font-medium bg-amber-500/20 text-amber-200 border border-amber-400/30 rounded cursor-pointer whitespace-nowrap shrink-0"
-                      >
-                        Chống đụng hàng
-                      </button>
                     </div>
 
                     {/* Route List inside Phone Preview */}
@@ -983,7 +983,7 @@ export default function App() {
                                 ))}
                               </div>
                               <div className="px-2 py-1 rounded bg-slate-900/90 border border-white/10 font-mono text-[11px] text-emerald-300 truncate">
-                                Đích: {route.targetPackage}
+                                Đích: {route.targetPackage || 'Để trống (Mở bằng Web)'}
                               </div>
                             </div>
                           )}

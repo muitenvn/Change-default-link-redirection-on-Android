@@ -150,6 +150,27 @@ fun AtmosphericAppBackground(
     }
 }
 
+/**
+ * Logo Vector chính thức của ứng dụng Link Dispatcher hiển thị ngay trên thanh tiêu đề (TopAppBar)
+ */
+@Composable
+fun AppLogoBadge() {
+    Canvas(
+        modifier = Modifier
+            .padding(end = 10.dp)
+            .background(Color(0xFF0B2228), shape = MaterialTheme.shapes.small)
+            .padding(6.dp)
+    ) {
+        val w = 28.dp.toPx()
+        // Vẽ biểu tượng mũi tên chuyển hướng màu Ngọc Lục Bảo
+        drawCircle(
+            color = Color(0xFF10B981),
+            radius = w * 0.42f,
+            style = Stroke(width = 2.dp.toPx())
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DispatcherMainScreen() {
@@ -171,8 +192,9 @@ fun DispatcherMainScreen() {
         mutableStateOf(prefs.getBoolean(RouterActivity.KEY_AUTO_FALLBACK_OFFICIAL, true))
     }
 
+    // Phần nhập link Web để trống mặc định theo yêu cầu
     var testUrl by remember {
-        mutableStateOf("https://music.youtube.com/watch?v=dQw4w9WgXcQ")
+        mutableStateOf("")
     }
 
     var dispatchCount by remember {
@@ -226,17 +248,20 @@ fun DispatcherMainScreen() {
             topBar = {
                 TopAppBar(
                     title = {
-                        Column {
-                            Text(
-                                text = "Link Dispatcher",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Điều hướng thông minh YouTube, YT Music, Spotify & Mạng xã hội",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AppLogoBadge()
+                            Column {
+                                Text(
+                                    text = "Link Dispatcher",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Điều hướng thông minh YouTube, YT Music, Spotify & Mạng xã hội",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -253,7 +278,7 @@ fun DispatcherMainScreen() {
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // CARD 0: CHỌN HÌNH NỀN & CHỐNG ĐỤNG HÀNG NHANH
+                // CARD 0: CHỌN HÌNH NỀN & TÙY CHỌN MẶC ĐỊNH
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -265,7 +290,7 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Giao diện Hình nền & Chống đụng hàng ứng dụng",
+                            text = "Giao diện Hình nền & Tùy chọn chung",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -318,29 +343,6 @@ fun DispatcherMainScreen() {
                                         .apply()
                                 }
                             )
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                // Tự động tắt các dịch vụ ngoài YouTube nếu phát hiện máy đã có sẵn App chính thức để tránh đụng hàng
-                                ServiceRoute.entries.forEach { route ->
-                                    if (route != ServiceRoute.YOUTUBE_VIDEO && route != ServiceRoute.YOUTUBE_MUSIC) {
-                                        val officialInstalled = checkPackageInstalled(context, route.officialPackage)
-                                        if (officialInstalled) {
-                                            routeEnabledMap[route] = false
-                                            setRouteComponentEnabled(context, prefs, route, false)
-                                        }
-                                    }
-                                }
-                                Toast.makeText(
-                                    context,
-                                    "Đã tự động tắt các luồng Spotify/MXH đã có app riêng để tránh đụng hàng!",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Tắt nhanh các luồng dễ đụng hàng với App đã cài sẵn")
                         }
                     }
                 }
@@ -430,19 +432,20 @@ fun DispatcherMainScreen() {
                                             .putString(RouterActivity.prefKeyRoutePackage(route), cleaned)
                                             .apply()
                                     },
-                                    label = { Text("Package Name đích (Tự nhập app bất kỳ)") },
+                                    label = { Text("Package Name đích (Để trống = Mở bằng Web)") },
+                                    placeholder = { Text("Để trống để mở qua trình duyệt Web") },
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
                                 Text(
-                                    text = if (isInstalled) {
-                                        "Đã tìm thấy gói \"$currentPkg\" trên máy"
-                                    } else {
-                                        "Chưa phát hiện \"$currentPkg\" (Sẽ tự chuyển sang App mặc định hoặc bật hộp chọn)"
+                                    text = when {
+                                        currentPkg.isBlank() -> "Chế độ Web: Đang để trống Package (Sẽ mở bằng Trình duyệt Web)"
+                                        isInstalled -> "Đã tìm thấy gói \"$currentPkg\" trên máy"
+                                        else -> "Chưa phát hiện \"$currentPkg\" (Sẽ tự chuyển sang App mặc định hoặc bật hộp chọn)"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (isInstalled) {
+                                    color = if (currentPkg.isBlank() || isInstalled) {
                                         MaterialTheme.colorScheme.primary
                                     } else {
                                         MaterialTheme.colorScheme.error

@@ -77,6 +77,7 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
       { label: 'RVX YouTube (Mod)', pkg: 'app.rvx.android.youtube' },
       { label: 'YouTube Mặc định (Official)', pkg: 'com.google.android.youtube', isOfficial: true },
       { label: 'NewPipe', pkg: 'org.schabi.newpipe' },
+      { label: 'Mở bằng Web (Để trống)', pkg: '' },
     ],
   },
   youtube_music: {
@@ -98,6 +99,7 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
         pkg: 'com.google.android.apps.youtube.music',
         isOfficial: true,
       },
+      { label: 'Mở bằng Web (Để trống)', pkg: '' },
     ],
   },
   spotify: {
@@ -114,6 +116,7 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
       { label: 'Spotify Mặc định / xManager', pkg: 'com.spotify.music', isOfficial: true },
       { label: 'Spotify Lite', pkg: 'com.spotify.lite' },
       { label: 'Spotube (Client thay thế)', pkg: 'oss.krtirtho.spotube' },
+      { label: 'Mở bằng Web (Để trống)', pkg: '' },
     ],
   },
   facebook: {
@@ -130,6 +133,7 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
       { label: 'Facebook Mặc định', pkg: 'com.facebook.katana', isOfficial: true },
       { label: 'Facebook Lite', pkg: 'com.facebook.lite' },
       { label: 'SlimSocial for Facebook', pkg: 'it.rignanese.leo.slimfacebook' },
+      { label: 'Mở bằng Web (Để trống)', pkg: '' },
     ],
   },
   social_media: {
@@ -157,6 +161,7 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
       { label: 'Instander (IG Mod)', pkg: 'com.instander.android' },
       { label: 'X / Twitter Mặc định', pkg: 'com.twitter.android', isOfficial: true },
       { label: 'Reddit Mặc định', pkg: 'com.reddit.frontpage', isOfficial: true },
+      { label: 'Mở bằng Web (Để trống)', pkg: '' },
     ],
   },
 };
@@ -422,6 +427,8 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
 
     <application
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="${config.appName}"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
@@ -1477,7 +1484,7 @@ fun DispatcherMainScreen() {
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // CARD 0: CHỌN HÌNH NỀN & CHỐNG ĐỤNG HÀNG NHANH
+                // CARD 0: CHỌN HÌNH NỀN & TÙY CHỌN MẶC ĐỊNH
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -1489,7 +1496,7 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Giao diện Hình nền & Chống đụng hàng ứng dụng",
+                            text = "Giao diện Hình nền & Tùy chọn chung",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -1542,28 +1549,6 @@ fun DispatcherMainScreen() {
                                         .apply()
                                 }
                             )
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                ServiceRoute.entries.forEach { route ->
-                                    if (route != ServiceRoute.YOUTUBE_VIDEO && route != ServiceRoute.YOUTUBE_MUSIC) {
-                                        val officialInstalled = checkPackageInstalled(context, route.officialPackage)
-                                        if (officialInstalled) {
-                                            routeEnabledMap[route] = false
-                                            setRouteComponentEnabled(context, prefs, route, false)
-                                        }
-                                    }
-                                }
-                                Toast.makeText(
-                                    context,
-                                    "Đã tự động tắt các luồng Spotify/MXH đã có app riêng để tránh đụng hàng!",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Tắt nhanh các luồng dễ đụng hàng với App đã cài sẵn")
                         }
                     }
                 }
@@ -2030,6 +2015,72 @@ jobs:
         env:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}`;
 
+  const icLauncherXml = `<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>`;
+
+  const icLauncherBgXml = `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="108"
+                android:endY="108"
+                android:startX="0"
+                android:startY="0"
+                android:type="linear">
+                <item android:color="#FF07111E" android:offset="0.0" />
+                <item android:color="#FF0C262B" android:offset="0.55" />
+                <item android:color="#FF090D16" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#1A10B981"
+        android:pathData="M54,54m-38,0a38,38 0,1 1,76 0a38,38 0,1 1,-76 0" />
+</vector>`;
+
+  const icLauncherFgXml = `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.92"
+        android:scaleY="0.92">
+        <path
+            android:fillColor="#FF10B981"
+            android:pathData="M54,22 L80,37 L80,71 L54,86 L28,71 L28,37 Z" />
+        <path
+            android:fillColor="#FF09131F"
+            android:pathData="M54,27 L75.5,39.5 L75.5,68.5 L54,81 L32.5,68.5 L32.5,39.5 Z" />
+        <path
+            android:fillColor="#FF34D399"
+            android:pathData="M43,41 L64,54 L43,67 Z" />
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M58,42 L70,42 L70,54" />
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:pathData="M56,56 L70,42" />
+    </group>
+</vector>`;
+
   return [
     {
       path: 'app/src/main/AndroidManifest.xml',
@@ -2037,7 +2088,7 @@ jobs:
       language: 'xml',
       category: 'core',
       description:
-        'Tách 5 <activity-alias> độc lập cho YouTube Video, YouTube Music (music.youtube.com), Spotify, Facebook và Mạng xã hội (TikTok/IG/X/Reddit) để người dùng có thể bật/tắt từng luồng mà không bị đụng hàng.',
+        'Khai báo Logo (@mipmap/ic_launcher) cùng 5 <activity-alias> độc lập cho YouTube Video, YouTube Music (music.youtube.com), Spotify, Facebook và Mạng xã hội.',
       content: manifestXml,
     },
     {
@@ -2046,7 +2097,7 @@ jobs:
       language: 'kotlin',
       category: 'core',
       description:
-        'Tự động dịch liên kết YouTube, YouTube Music, Spotify (spotify:track:...), Facebook (fb://facewebmodal...) và MXH; hỗ trợ cả App Mod, App Mặc định và bất kỳ Package tùy chỉnh nào.',
+        'Tự động dịch liên kết YouTube, YouTube Music, Spotify, Facebook và MXH; hỗ trợ cả App Mod, App Mặc định, Package tùy chỉnh và chế độ để trống mở bằng Web.',
       content: routerActivityKt,
     },
     {
@@ -2055,8 +2106,33 @@ jobs:
       language: 'kotlin',
       category: 'core',
       description:
-        'Giao diện Compose Material 3 có Hình nền đồ họa đa lớp (AtmosphericAppBackground), công tắc Bật/Tắt chống đụng hàng cho từng dịch vụ và bộ chọn nhanh App Mod / App Mặc định.',
+        'Giao diện Compose Material 3 có Logo, Hình nền đồ họa đa lớp (AtmosphericAppBackground), công tắc Bật/Tắt từng dịch vụ và chế độ để trống cho phần Web.',
       content: mainActivityKt,
+    },
+    {
+      path: 'app/src/main/res/drawable/ic_launcher_foreground.xml',
+      title: 'ic_launcher_foreground.xml (Logo Foreground)',
+      language: 'xml',
+      category: 'core',
+      description:
+        'Vector Drawable biểu tượng chính thức của ứng dụng Link Dispatcher (Nút Play kết hợp mũi tên chuyển hướng lục giác).',
+      content: icLauncherFgXml,
+    },
+    {
+      path: 'app/src/main/res/drawable/ic_launcher_background.xml',
+      title: 'ic_launcher_background.xml (Logo Background)',
+      language: 'xml',
+      category: 'core',
+      description: 'Vector Drawable nền chuyển sắc (Gradient) cho Adaptive Icon của ứng dụng.',
+      content: icLauncherBgXml,
+    },
+    {
+      path: 'app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml',
+      title: 'ic_launcher.xml (Adaptive Icon)',
+      language: 'xml',
+      category: 'core',
+      description: 'Cấu hình Adaptive Launcher Icon chuẩn cho Android 8.0+ (API 26+).',
+      content: icLauncherXml,
     },
     {
       path: 'app/build.gradle.kts',
