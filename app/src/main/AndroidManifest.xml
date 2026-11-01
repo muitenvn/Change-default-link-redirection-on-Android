@@ -4,15 +4,44 @@
 
     <!--
       Chính sách Package Visibility của Android 11+ (API 30+):
-      Khai báo danh sách các package ứng dụng YouTube Mod và Intent scheme cần truy vấn
+      Khai báo đầy đủ cả ứng dụng Mod, ứng dụng Mặc định (Official) và trình duyệt
+      cho YouTube, YouTube Music, Spotify, Facebook, TikTok, Instagram, X/Twitter, Reddit.
     -->
     <queries>
+        <!-- YouTube Video (Mod & Mặc định) -->
         <package android:name="app.morphe.android.youtube" />
         <package android:name="app.revanced.android.youtube" />
         <package android:name="app.rvx.android.youtube" />
-        <package android:name="app.rvx.android.apps.youtube.music" />
         <package android:name="com.google.android.youtube" />
+        <package android:name="org.schabi.newpipe" />
 
+        <!-- YouTube Music (Mod & Mặc định) -->
+        <package android:name="app.rvx.android.apps.youtube.music" />
+        <package android:name="app.revanced.android.apps.youtube.music" />
+        <package android:name="app.morphe.android.apps.youtube.music" />
+        <package android:name="com.google.android.apps.youtube.music" />
+
+        <!-- Spotify (Mặc định, Lite & Client thay thế) -->
+        <package android:name="com.spotify.music" />
+        <package android:name="com.spotify.lite" />
+        <package android:name="oss.krtirtho.spotube" />
+
+        <!-- Facebook & Messenger (Mặc định, Lite & Wrapper) -->
+        <package android:name="com.facebook.katana" />
+        <package android:name="com.facebook.lite" />
+        <package android:name="com.facebook.orca" />
+        <package android:name="it.rignanese.leo.slimfacebook" />
+
+        <!-- TikTok, Instagram, Threads, X (Twitter), Reddit -->
+        <package android:name="com.ss.android.ugc.trill" />
+        <package android:name="com.zhiliaoapp.musically" />
+        <package android:name="com.instagram.android" />
+        <package android:name="com.instander.android" />
+        <package android:name="com.instagram.barcelona" />
+        <package android:name="com.twitter.android" />
+        <package android:name="com.reddit.frontpage" />
+
+        <!-- Cho phép truy vấn toàn bộ ứng dụng hỗ trợ ACTION_VIEW https để người dùng tự nhập bất kỳ package nào -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
@@ -21,6 +50,14 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="vnd.youtube" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="spotify" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="fb" />
         </intent>
     </queries>
 
@@ -31,7 +68,7 @@
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         tools:targetApi="34">
 
-        <!-- 1. MainActivity: Giao diện cài đặt Compose Material 3 -->
+        <!-- 1. MainActivity: Giao diện cài đặt Compose Material 3 có Hình nền & Quản lý Luồng -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -43,10 +80,8 @@
         </activity>
 
         <!--
-          2. RouterActivity: Activity trung gian trong suốt (Theme.Translucent.NoTitleBar)
-          - Khi tìm thấy app Mod: chuyển hướng tức thì trong vài mili-giây và gọi finish() ngay.
-          - Khi KHÔNG tìm thấy app Mod: hiển thị Compose ModalBottomSheet / Dialog để người dùng
-            chọn mở bằng ứng dụng khác hoặc trình duyệt mà không bị văng (crash) như Theme.NoDisplay.
+          2. RouterActivity gốc: Xử lý dịch URL & bắn Intent sang ứng dụng đích.
+          Đón nhận thêm thao tác Share văn bản (ACTION_SEND) từ Zalo, Messenger, Chrome.
         -->
         <activity
             android:name=".RouterActivity"
@@ -55,41 +90,159 @@
             android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
 
-            <!-- Đón bắt toàn bộ liên kết YouTube với autoVerify="true" và priority="999" -->
-            <intent-filter
-                android:autoVerify="true"
-                android:priority="999">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <!-- Schemes -->
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-
-                <!-- Hosts -->
-                <data android:host="youtube.com" />
-                <data android:host="m.youtube.com" />
-                <data android:host="youtu.be" />
-                <data android:host="www.youtube.com" />
-                <data android:host="music.youtube.com" />
-
-                <!-- Path Prefixes -->
-                <data android:pathPrefix="/" />
-                <data android:pathPrefix="/watch" />
-                <data android:pathPrefix="/shorts" />
-                <data android:pathPrefix="/live" />
-                <data android:pathPrefix="/playlist" />
-            </intent-filter>
-
-            <!-- Đón bắt thêm thao tác Share link (ACTION_SEND) từ Zalo, Messenger, Trình duyệt -->
             <intent-filter android:priority="999">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!--
+          ======================================================================
+          CÁC ACTIVITY-ALIAS ĐỘC LẬP CHO TỪNG DỊCH VỤ:
+          Giúp người dùng BẬT / TẮT từng dịch vụ ngay trong ứng dụng thông qua
+          PackageManager.setComponentEnabledSetting(). Khi tắt một dịch vụ (do bị
+          đụng hàng với app đã cài sẵn), hệ điều hành Android sẽ gỡ hẳn bộ lọc
+          của dịch vụ đó để không bao giờ tranh quyền mở mặc định nữa!
+          ======================================================================
+        -->
+
+        <!-- ALIAS 1: YOUTUBE VIDEO (youtube.com, m.youtube.com, www.youtube.com, youtu.be) -->
+        <activity-alias
+            android:name=".RouteYoutubeVideoAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:targetActivity=".RouterActivity">
+            <intent-filter
+                android:autoVerify="true"
+                android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+
+                <data android:host="youtube.com" />
+                <data android:host="m.youtube.com" />
+                <data android:host="www.youtube.com" />
+                <data android:host="youtu.be" />
+
+                <data android:pathPrefix="/" />
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/shorts" />
+                <data android:pathPrefix="/live" />
+                <data android:pathPrefix="/playlist" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- ALIAS 2: YOUTUBE MUSIC RIÊNG BIỆT (music.youtube.com) -->
+        <activity-alias
+            android:name=".RouteYoutubeMusicAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:targetActivity=".RouterActivity">
+            <intent-filter
+                android:autoVerify="true"
+                android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="music.youtube.com" />
+
+                <data android:pathPrefix="/" />
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/playlist" />
+                <data android:pathPrefix="/browse" />
+                <data android:pathPrefix="/channel" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- ALIAS 3: SPOTIFY (open.spotify.com, spotify.link, spoti.fi) -->
+        <activity-alias
+            android:name=".RouteSpotifyAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:targetActivity=".RouterActivity">
+            <intent-filter
+                android:autoVerify="true"
+                android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="open.spotify.com" />
+                <data android:host="spotify.link" />
+                <data android:host="spoti.fi" />
+
+                <data android:pathPrefix="/" />
+                <data android:pathPrefix="/track" />
+                <data android:pathPrefix="/album" />
+                <data android:pathPrefix="/playlist" />
+                <data android:pathPrefix="/artist" />
+                <data android:pathPrefix="/episode" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- ALIAS 4: FACEBOOK (facebook.com, m.facebook.com, fb.watch, fb.com) -->
+        <activity-alias
+            android:name=".RouteFacebookAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:targetActivity=".RouterActivity">
+            <intent-filter
+                android:autoVerify="true"
+                android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="facebook.com" />
+                <data android:host="www.facebook.com" />
+                <data android:host="m.facebook.com" />
+                <data android:host="fb.watch" />
+                <data android:host="fb.com" />
+                <data android:pathPrefix="/" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- ALIAS 5: MẠNG XÃ HỘI KHÁC (TikTok, Instagram, Threads, X/Twitter, Reddit) -->
+        <activity-alias
+            android:name=".RouteSocialAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:targetActivity=".RouterActivity">
+            <intent-filter
+                android:autoVerify="true"
+                android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="tiktok.com" />
+                <data android:host="www.tiktok.com" />
+                <data android:host="vm.tiktok.com" />
+                <data android:host="vt.tiktok.com" />
+                <data android:host="instagram.com" />
+                <data android:host="www.instagram.com" />
+                <data android:host="threads.net" />
+                <data android:host="www.threads.net" />
+                <data android:host="x.com" />
+                <data android:host="twitter.com" />
+                <data android:host="reddit.com" />
+                <data android:host="www.reddit.com" />
+                <data android:pathPrefix="/" />
+            </intent-filter>
+        </activity-alias>
 
     </application>
 
