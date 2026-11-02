@@ -196,14 +196,9 @@ fun DispatcherMainScreen() {
         )
     }
 
-    var inBrowserAutoBack by remember {
-        mutableStateOf(
-            prefs.getBoolean(RouterActivity.KEY_IN_BROWSER_AUTO_BACK, true)
-        )
-    }
-
+    // Điền sẵn đường link mặc định để người dùng có thể bấm thử ngay lập tức
     var testUrl by remember {
-        mutableStateOf("")
+        mutableStateOf(RouterActivity.DEFAULT_SAMPLE_YOUTUBE_URL)
     }
 
     var dispatchCount by remember {
@@ -297,7 +292,7 @@ fun DispatcherMainScreen() {
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Bắt link cả ngoài hệ thống lẫn NGAY TRONG TRÌNH DUYỆT",
+                                    text = "Đầy đủ Đường liên kết mặc định & Bắt link TRONG Trình duyệt",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -318,11 +313,41 @@ fun DispatcherMainScreen() {
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // CARD ĐẶC BIỆT: BẮT LINK NGAY BÊN TRONG TRÌNH DUYỆT (CHROME / BRAVE / FIREFOX / SAMSUNG)
+                // CARD 1: CẤP QUYỀN MỞ THEO MẶC ĐỊNH (ĐẦY ĐỦ 25+ ĐƯỜNG LINK MẶC ĐỊNH)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = Color(0xD90E2229)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "1. Bật Các Đường Liên Kết Mặc Định (Open by default)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Đã khai báo đầy đủ 25+ tên miền mặc định (youtube.com, m.youtube.com, youtu.be, music.youtube.com, open.spotify.com, fb.watch, tiktok.com...) trực tiếp trong RouterActivity để mục '+ Thêm đường liên kết' trong Cài đặt luôn hiển thị đầy đủ:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(
+                            onClick = { openSystemDefaultLinksSettings(context) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Mở 'Mở theo mặc định' & Chọn tất cả đường liên kết")
+                        }
+                    }
+                }
+
+                // CARD 2: BẮT LINK NGAY BÊN TRONG TRÌNH DUYỆT (ĐÃ SỬA LỖI VĂNG CHROME)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xBF111827)
                     )
                 ) {
                     Column(
@@ -336,15 +361,15 @@ fun DispatcherMainScreen() {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Bắt link YouTube / Nhạc ngay TRONG Trình duyệt",
+                                    text = "2. Bắt link YouTube / Nhạc ngay TRONG Trình duyệt",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = if (inBrowserAccessibilityActive) {
-                                        "ĐANG HOẠT ĐỘNG: Khi bạn đang lướt Chrome / Brave / Firefox mà nhấn vào link YouTube, ứng dụng sẽ tự động bóc link trên thanh địa chỉ và mở thẳng YouTube Mod!"
+                                        "ĐANG HOẠT ĐỘNG: Đã sửa triệt để lỗi tự bấm Back văng ngược về Chrome. Khi bấm vào video/Shorts trong trình duyệt, ứng dụng sẽ mở thẳng YouTube Morphe và giữ nguyên màn hình phát!"
                                     } else {
-                                        "CHƯA BẬT QUYỀN TRỢ NĂNG: Hãy bật mục này để khi bạn đang ở sẵn trong trình duyệt mà bấm vào link YouTube thì nó vẫn tự nhảy sang YouTube Mod."
+                                        "CHƯA BẬT TRỢ NĂNG: Bật mục này để khi bạn đang ở trong Chrome / Brave / Firefox mà bấm vào video YouTube thì nó tự nhảy sang YouTube Mod."
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (inBrowserAccessibilityActive) {
@@ -366,27 +391,6 @@ fun DispatcherMainScreen() {
                             )
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Tự động bấm Back trên trình duyệt sau khi chuyển sang App Mod",
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Switch(
-                                checked = inBrowserAutoBack,
-                                onCheckedChange = { autoBack ->
-                                    inBrowserAutoBack = autoBack
-                                    prefs.edit()
-                                        .putBoolean(RouterActivity.KEY_IN_BROWSER_AUTO_BACK, autoBack)
-                                        .apply()
-                                }
-                            )
-                        }
-
                         Button(
                             onClick = { openAccessibilitySettings(context) },
                             modifier = Modifier.fillMaxWidth()
@@ -402,7 +406,7 @@ fun DispatcherMainScreen() {
                     }
                 }
 
-                // CARD 1: TỰ ĐỘNG PHÁT HIỆN & CHỌN TRÌNH DUYỆT CHO CÁC LINK CÒN LẠI
+                // CARD 3: TỰ ĐỘNG PHÁT HIỆN & CHỌN TRÌNH DUYỆT CHO CÁC LINK CÒN LẠI
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -425,7 +429,7 @@ fun DispatcherMainScreen() {
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = "Khi mở link không thuộc YouTube, YT Music, Spotify, Facebook, MXH, ứng dụng sẽ chuyển thẳng sang trình duyệt bạn chọn dưới đây (Tự động phát hiện từ thiết bị):",
+                                    text = "Tự động phát hiện các trình duyệt đang cài trên máy để mở các liên kết ngoài danh sách:",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -489,15 +493,6 @@ fun DispatcherMainScreen() {
                                     )
                                 }
                             }
-
-                            val activeBrowserInfo = detectedBrowsers.find { it.packageName == selectedBrowserPkg }
-                                ?: detectedBrowsers.first()
-                            Text(
-                                text = "Đang chọn: ${activeBrowserInfo.appName} (${activeBrowserInfo.packageName}) · Đã phát hiện ${detectedBrowsers.size} trình duyệt trên máy",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.primary
-                            )
                         }
                     }
                 }
@@ -575,9 +570,9 @@ fun DispatcherMainScreen() {
                                             !isEnabled && currentPkg.isNotBlank() && !isInstalled ->
                                                 "Đã tự động tắt luồng (Chưa cài $currentPkg -> Mở thẳng bằng Trình duyệt đã chọn)"
                                             isEnabled ->
-                                                "Đang bật đón bắt liên kết (Cả ngoài hệ thống & trong Trình duyệt)"
+                                                "Đang bật đón bắt liên kết"
                                             else ->
-                                                "Đã tắt (ComponentName đã vô hiệu hóa -> Mở qua Trình duyệt đã chọn)"
+                                                "Đã tắt (Mở qua Trình duyệt đã chọn)"
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = if (isEnabled) {
@@ -601,12 +596,6 @@ fun DispatcherMainScreen() {
                                     }
                                 )
                             }
-
-                            Text(
-                                text = "Chọn nhanh Package đích hoặc để trống để mở bằng Trình duyệt đã chọn:",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
 
                             FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
@@ -644,7 +633,6 @@ fun DispatcherMainScreen() {
                                     }
                                 },
                                 label = { Text("Package Name đích (Để trống = Mở bằng Trình duyệt)") },
-                                placeholder = { Text("Để trống để mở qua trình duyệt đã chọn") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -652,7 +640,7 @@ fun DispatcherMainScreen() {
                     }
                 }
 
-                // CARD CẤP QUYỀN MỞ THEO MẶC ĐỊNH / DEFAULT BROWSER
+                // CARD KIỂM TRA NHANH VỚI CÁC ĐƯỜNG LINK MẶC ĐỊNH CÓ SẴN
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -664,60 +652,48 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Đặt làm Ứng dụng mở đường dẫn tự động (Default Browser)",
+                            text = "Kiểm tra nhanh Chuyển tiếp (Có sẵn Đường Link Mặc Định)",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Button(
-                            onClick = { openDefaultAppsSettings(context) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("1. Chọn làm 'Ứng dụng Trình duyệt mặc định' (Default Apps)")
-                        }
-                        OutlinedButton(
-                            onClick = { openSystemDefaultLinksSettings(context) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("2. Mở màn hình 'Mở theo mặc định' (Open by default)")
-                        }
-                    }
-                }
 
-                // CARD KIỂM TRA NHANH INTENT
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xBF111827)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "Kiểm tra nhanh Chuyển tiếp",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                "YouTube Video" to "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                                "YouTube Shorts" to "https://m.youtube.com/shorts/5qap5aO4i9A",
+                                "YouTube Music" to "https://music.youtube.com/watch?v=dQw4w9WgXcQ",
+                                "Spotify" to "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"
+                            ).forEach { (label, sampleLink) ->
+                                FilterChip(
+                                    selected = testUrl == sampleLink,
+                                    onClick = { testUrl = sampleLink },
+                                    label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
 
                         OutlinedTextField(
                             value = testUrl,
                             onValueChange = { testUrl = it },
-                            label = { Text("Nhập link cần thử nghiệm (Để trống mặc định)") },
+                            label = { Text("Đường link kiểm tra mặc định") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
 
                         Button(
                             onClick = {
-                                val trimmed = testUrl.trim()
-                                if (trimmed.isNotEmpty()) {
-                                    val testIntent = Intent(context, RouterActivity::class.java).apply {
-                                        action = Intent.ACTION_VIEW
-                                        data = Uri.parse(trimmed)
-                                    }
-                                    context.startActivity(testIntent)
+                                val trimmed = testUrl.trim().ifEmpty {
+                                    RouterActivity.DEFAULT_SAMPLE_YOUTUBE_URL
                                 }
+                                testUrl = trimmed
+                                val testIntent = Intent(context, RouterActivity::class.java).apply {
+                                    action = Intent.ACTION_VIEW
+                                    data = Uri.parse(trimmed)
+                                }
+                                context.startActivity(testIntent)
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -818,13 +794,5 @@ private fun openSystemDefaultLinksSettings(context: Context) {
                 Toast.LENGTH_SHORT
             ).show()
         }
-    }
-}
-
-private fun openDefaultAppsSettings(context: Context) {
-    try {
-        context.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
-    } catch (_: Exception) {
-        openSystemDefaultLinksSettings(context)
     }
 }

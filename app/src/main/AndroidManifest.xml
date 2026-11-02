@@ -4,10 +4,8 @@
 
     <!--
       Chính sách Package Visibility của Android 11+ (API 30+):
-      - Khai báo thẻ <intent> với ACTION_VIEW + CATEGORY_BROWSABLE (scheme http/https)
-        để hệ thống TỰ ĐỘNG PHÁT HIỆN toàn bộ các trình duyệt Web đang cài trên máy
-        (Chrome, Brave, Firefox, Samsung Internet, Edge, Opera, Vivaldi, Cốc Cốc,...)
-        mà không cần định sẵn danh sách trình duyệt cứng.
+      Khai báo các package đích và truy vấn trình duyệt (http/https BROWSABLE)
+      để tự động phát hiện mọi trình duyệt cài trên máy và kiểm tra bản Mod.
     -->
     <queries>
         <package android:name="app.morphe.android.youtube" />
@@ -83,8 +81,13 @@
         </activity>
 
         <!--
-          2. RouterActivity: Dùng Theme.NoDisplay để chuyển tiếp tức thì
-          không tạo cửa sổ giao diện, không giật khung hình và tự đóng ngay.
+          2. RouterActivity (Theme.NoDisplay):
+          QUAN TRỌNG: Trên Android 12/13/14 (đặc biệt Xiaomi HyperOS & Samsung OneUI),
+          KHÔNG ĐƯỢC khai báo <data android:scheme="http"/> mà thiếu android:host,
+          vì nếu thiếu android:host hệ thống sẽ coi app là Trình duyệt và làm TRỐNG RỖNG
+          danh sách "Thêm đường liên kết" trong mục "Mở theo mặc định" (Open by default)!
+          Do đó toàn bộ các host mặc định phải được khai báo tường minh kèm autoVerify="true"
+          ngay trong RouterActivity dưới đây để danh sách đường link mặc định luôn hiện đầy đủ.
         -->
         <activity
             android:name=".RouterActivity"
@@ -93,26 +96,77 @@
             android:noHistory="true"
             android:theme="@android:style/Theme.NoDisplay">
 
-            <!-- Hỗ trợ nhận link với tư cách Default Browser / Generic HTTP & HTTPS Handler -->
+            <!-- Danh sách Đường liên kết Mặc định hiển thị trong "Mở theo mặc định" (Open by default) -->
+            <intent-filter
+                android:autoVerify="true"
+                android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+
+                <!-- YouTube & YouTube Music -->
+                <data android:host="youtube.com" />
+                <data android:host="m.youtube.com" />
+                <data android:host="www.youtube.com" />
+                <data android:host="youtu.be" />
+                <data android:host="music.youtube.com" />
+
+                <!-- Spotify -->
+                <data android:host="open.spotify.com" />
+                <data android:host="spotify.link" />
+                <data android:host="spoti.fi" />
+
+                <!-- Facebook & Watch -->
+                <data android:host="facebook.com" />
+                <data android:host="www.facebook.com" />
+                <data android:host="m.facebook.com" />
+                <data android:host="fb.watch" />
+                <data android:host="fb.com" />
+
+                <!-- Mạng xã hội (TikTok, Instagram, Threads, X, Reddit) -->
+                <data android:host="tiktok.com" />
+                <data android:host="www.tiktok.com" />
+                <data android:host="vm.tiktok.com" />
+                <data android:host="vt.tiktok.com" />
+                <data android:host="instagram.com" />
+                <data android:host="www.instagram.com" />
+                <data android:host="threads.net" />
+                <data android:host="www.threads.net" />
+                <data android:host="x.com" />
+                <data android:host="twitter.com" />
+                <data android:host="reddit.com" />
+                <data android:host="www.reddit.com" />
+
+                <data android:pathPrefix="/" />
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/shorts" />
+                <data android:pathPrefix="/live" />
+                <data android:pathPrefix="/playlist" />
+            </intent-filter>
+
+            <!-- Đón bắt Custom Schemes khi trang web gọi lệnh mở App -->
             <intent-filter android:priority="999">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" />
-                <data android:scheme="https" />
+                <data android:scheme="vnd.youtube" />
+                <data android:scheme="youtube" />
+                <data android:scheme="vnd.youtube.music" />
+                <data android:scheme="spotify" />
+                <data android:scheme="fb" />
             </intent-filter>
 
-            <!-- Đón bắt thao tác Share link (ACTION_SEND) từ Trình duyệt, Zalo, Messenger -->
+            <!-- Đón bắt thao tác Share link (ACTION_SEND) -->
             <intent-filter android:priority="999">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
 
-            <!--
-              Nút "Mở bằng Link Dispatcher" ngay trên thanh menu nổi khi bôi đen / nhấn giữ
-              link hoặc văn bản bên trong bất kỳ Trình duyệt nào (ACTION_PROCESS_TEXT)
-            -->
+            <!-- Nút "Mở bằng Link Dispatcher" khi bôi đen văn bản/link trong trình duyệt -->
             <intent-filter android:priority="999">
                 <action android:name="android.intent.action.PROCESS_TEXT" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -123,8 +177,7 @@
         <!--
           3. BrowserUrlInterceptorService:
           Dịch vụ bắt link NGAY BÊN TRONG TRÌNH DUYỆT (Chrome, Brave, Firefox, Samsung Internet...).
-          Khi bạn đã ở trong trình duyệt và nhấn vào link YouTube / YT Music / Spotify,
-          dịch vụ đọc thanh địa chỉ trình duyệt và phóng thẳng sang ứng dụng Mod tức thì!
+          Đã sửa triệt để lỗi tự bấm Back làm văng YouTube Morphe và lỗi lặp 3 giây.
         -->
         <service
             android:name=".BrowserUrlInterceptorService"
@@ -139,15 +192,7 @@
                 android:resource="@xml/accessibility_browser_interceptor" />
         </service>
 
-        <!--
-          ======================================================================
-          CÁC ACTIVITY-ALIAS ĐỘC LẬP CHO TỪNG LUỒNG DỊCH VỤ:
-          Hỗ trợ cả http/https (autoVerify) LẪN custom scheme (vnd.youtube, youtube,
-          spotify, fb) khi bấm nút "Mở ứng dụng" ngay từ bên trong trang web trình duyệt.
-          ======================================================================
-        -->
-
-        <!-- ALIAS 1: YOUTUBE VIDEO -->
+        <!-- CÁC ACTIVITY-ALIAS CHO TỪNG LUỒNG DỊCH VỤ -->
         <activity-alias
             android:name=".RouteYoutubeVideoAlias"
             android:enabled="true"
@@ -162,25 +207,17 @@
 
                 <data android:scheme="http" />
                 <data android:scheme="https" />
-
                 <data android:host="youtube.com" />
                 <data android:host="m.youtube.com" />
                 <data android:host="www.youtube.com" />
                 <data android:host="youtu.be" />
-                <data android:pathPattern=".*" />
-            </intent-filter>
-
-            <!-- Đón bắt khi trang web trong trình duyệt gọi scheme vnd.youtube:// hoặc youtube:// -->
-            <intent-filter android:priority="999">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="vnd.youtube" />
-                <data android:scheme="youtube" />
+                <data android:pathPrefix="/" />
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/shorts" />
+                <data android:pathPrefix="/live" />
             </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 2: YOUTUBE MUSIC -->
         <activity-alias
             android:name=".RouteYoutubeMusicAlias"
             android:enabled="true"
@@ -196,18 +233,12 @@
                 <data android:scheme="http" />
                 <data android:scheme="https" />
                 <data android:host="music.youtube.com" />
-                <data android:pathPattern=".*" />
-            </intent-filter>
-
-            <intent-filter android:priority="999">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="vnd.youtube.music" />
+                <data android:pathPrefix="/" />
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/playlist" />
             </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 3: SPOTIFY -->
         <activity-alias
             android:name=".RouteSpotifyAlias"
             android:enabled="true"
@@ -225,18 +256,10 @@
                 <data android:host="open.spotify.com" />
                 <data android:host="spotify.link" />
                 <data android:host="spoti.fi" />
-                <data android:pathPattern=".*" />
-            </intent-filter>
-
-            <intent-filter android:priority="999">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="spotify" />
+                <data android:pathPrefix="/" />
             </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 4: FACEBOOK -->
         <activity-alias
             android:name=".RouteFacebookAlias"
             android:enabled="true"
@@ -256,18 +279,10 @@
                 <data android:host="m.facebook.com" />
                 <data android:host="fb.watch" />
                 <data android:host="fb.com" />
-                <data android:pathPattern=".*" />
-            </intent-filter>
-
-            <intent-filter android:priority="999">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="fb" />
+                <data android:pathPrefix="/" />
             </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 5: MẠNG XÃ HỘI KHÁC -->
         <activity-alias
             android:name=".RouteSocialAlias"
             android:enabled="true"
@@ -294,7 +309,7 @@
                 <data android:host="twitter.com" />
                 <data android:host="reddit.com" />
                 <data android:host="www.reddit.com" />
-                <data android:pathPattern=".*" />
+                <data android:pathPrefix="/" />
             </intent-filter>
         </activity-alias>
 

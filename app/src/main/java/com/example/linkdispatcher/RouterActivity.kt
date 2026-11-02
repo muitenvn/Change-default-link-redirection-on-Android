@@ -112,12 +112,6 @@ data class TranslatedLinkResult(
     val linkSubType: String
 )
 
-/**
- * RouterActivity kế thừa trực tiếp từ android.app.Activity với Theme.NoDisplay:
- * - Chuyển tiếp siêu mượt trong vài mili-giây và gọi finish() ngay lập tức.
- * - Phối hợp cùng BrowserUrlInterceptorService để bắt link cả khi người dùng ĐANG Ở TRONG TRÌNH DUYỆT
- *   (nhấn link YouTube trên Google Search hoặc trang web trong Chrome/Brave/Firefox).
- */
 class RouterActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -132,8 +126,6 @@ class RouterActivity : Activity() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val service = translated.service
 
-        // Nếu link không nằm trong các dịch vụ ứng dụng (YouTube, YT Music, Spotify, FB, MXH)
-        // -> Tự động chuyển thẳng sang Trình duyệt Web đã chọn / tự động phát hiện trên máy
         if (service == null) {
             prefs.edit()
                 .putString(KEY_LAST_DISPATCHED_URL, translated.normalizedHttpsUrl)
@@ -222,10 +214,10 @@ class RouterActivity : Activity() {
         const val KEY_WALLPAPER_STYLE = "wallpaper_style"
         const val KEY_FALLBACK_BROWSER_PACKAGE = "fallback_browser_package"
         const val KEY_IN_BROWSER_INTERCEPT_ENABLED = "in_browser_intercept_enabled"
-        const val KEY_IN_BROWSER_AUTO_BACK = "in_browser_auto_back"
         const val KEY_LAST_DISPATCHED_URL = "last_dispatched_url"
         const val KEY_LAST_VIDEO_ID = "last_video_id"
         const val KEY_DISPATCH_COUNT = "dispatch_count"
+        const val DEFAULT_SAMPLE_YOUTUBE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
         fun prefKeyRouteEnabled(route: ServiceRoute): String = "route_enabled_${route.id}"
         fun prefKeyRoutePackage(route: ServiceRoute): String =
@@ -235,9 +227,7 @@ class RouterActivity : Activity() {
             Pattern.compile("(https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+)")
 
         /**
-         * Được gọi trực tiếp từ BrowserUrlInterceptorService khi phát hiện người dùng
-         * nhấn vào link YouTube / YT Music / Spotify NGAY BÊN TRONG TRÌNH DUYỆT.
-         * Trả về true nếu đã phóng thành công sang ứng dụng Mod đích.
+         * Được gọi từ BrowserUrlInterceptorService khi phát hiện link video/nhạc hợp lệ trên thanh địa chỉ trình duyệt.
          */
         fun dispatchUrlFromBrowserService(context: Context, httpsUrl: String): Boolean {
             val rawUri = try {
@@ -248,6 +238,11 @@ class RouterActivity : Activity() {
 
             val translated = analyzeAndTranslateUri(rawUri)
             val service = translated.service ?: return false
+
+            // Khi bắt từ thanh địa chỉ trình duyệt, bắt buộc phải có ID video/playlist/track hợp lệ
+            if (translated.extractedId.isNullOrBlank()) {
+                return false
+            }
 
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val isRouteEnabled = prefs.getBoolean(prefKeyRouteEnabled(service), service.defaultEnabled)
@@ -277,7 +272,7 @@ class RouterActivity : Activity() {
             if (launched) {
                 prefs.edit()
                     .putString(KEY_LAST_DISPATCHED_URL, translated.normalizedHttpsUrl)
-                    .putString(KEY_LAST_VIDEO_ID, translated.extractedId ?: service.title)
+                    .putString(KEY_LAST_VIDEO_ID, translated.extractedId)
                     .putInt(KEY_DISPATCH_COUNT, prefs.getInt(KEY_DISPATCH_COUNT, 0) + 1)
                     .apply()
             }
@@ -288,7 +283,6 @@ class RouterActivity : Activity() {
             var workingUri = rawUri
             val initialScheme = workingUri.scheme?.lowercase() ?: ""
 
-            // Hỗ trợ khi trình duyệt bắn custom scheme vnd.youtube:// hoặc youtube://
             if (initialScheme == "vnd.youtube" || initialScheme == "youtube") {
                 val idFromScheme = workingUri.schemeSpecificPart
                     ?.removePrefix("//")
@@ -308,7 +302,6 @@ class RouterActivity : Activity() {
                 }
             }
 
-            // Tự động bóc tách liên kết chuyển hướng từ Google Search trong trình duyệt (google.com/url?q=...)
             val initialHost = workingUri.host?.lowercase() ?: ""
             if (initialHost.contains("google.") && workingUri.path == "/url") {
                 val redirectedTarget = workingUri.getQueryParameter("q")
@@ -384,7 +377,24 @@ class RouterActivity : Activity() {
                         videoId = workingUri.getQueryParameter("v")
                     }
                 }
+                val playlistId = workingUri.getQueryParameter("list")
                 val timestamp = workingUri.getQueryParameter("t") ?: workingUri.getQueryParameter("start")
+
+                // Chuẩn hóa m.youtube.com sang www.youtube.com để YouTube Morphe / ReVanced mở trực tiếp
+                // không bao giờ bị văng ngược lại trình duyệt
+                val canonicalYoutubeUrl = when {
+                    subType == "SHORTS" && !videoId.isNullOrBlank() ->
+                        "https://www.youtube.com/shorts/$videoId"
+                    !videoId.isNullOrBlank() -> {
+                        val base = "https://www.youtube.com/watch?v=$videoId"
+                        val withList = if (!playlistId.isNullOrBlank()) "$base&list=$playlistId" else base
+                        if (!timestamp.isNullOrBlank()) "$withList&t=$timestamp" else withList
+                    }
+                    !playlistId.isNullOrBlank() ->
+                        "https://www.youtube.com/playlist?list=$playlistId"
+                    else -> httpsString.replaceFirst("://m.youtube.com", "://www.youtube.com")
+                }
+
                 val vndUri = if (!videoId.isNullOrBlank()) {
                     val base = "vnd.youtube:$videoId"
                     Uri.parse(if (!timestamp.isNullOrBlank()) "$base?t=$timestamp" else base)
@@ -393,9 +403,9 @@ class RouterActivity : Activity() {
                 return TranslatedLinkResult(
                     service = ServiceRoute.YOUTUBE_VIDEO,
                     originalUrl = rawUri.toString(),
-                    normalizedHttpsUrl = httpsString,
+                    normalizedHttpsUrl = canonicalYoutubeUrl,
                     nativeSchemeUri = vndUri,
-                    extractedId = videoId ?: workingUri.getQueryParameter("list"),
+                    extractedId = videoId ?: playlistId,
                     linkSubType = subType
                 )
             }
@@ -413,7 +423,7 @@ class RouterActivity : Activity() {
                     originalUrl = rawUri.toString(),
                     normalizedHttpsUrl = httpsString,
                     nativeSchemeUri = spotifyNativeUri,
-                    extractedId = resourceId,
+                    extractedId = resourceId ?: firstSegment.takeIf { it.isNotBlank() },
                     linkSubType = resourceType?.uppercase() ?: "SPOTIFY_LINK"
                 )
             }
@@ -510,7 +520,6 @@ class RouterActivity : Activity() {
                 val forwardIntent = Intent(Intent.ACTION_VIEW, uri).apply {
                     setPackage(targetPackage)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 try {
                     context.startActivity(forwardIntent)
@@ -596,9 +605,6 @@ class RouterActivity : Activity() {
             }
         }
 
-        /**
-         * Tự động phát hiện (Auto-detect) tất cả trình duyệt Web đang được cài đặt trên thiết bị
-         */
         fun detectInstalledBrowsers(context: Context): List<DetectedBrowser> {
             val pm = context.packageManager
             val probeIntent = Intent(Intent.ACTION_VIEW, Uri.parse("http://www.example.com")).apply {

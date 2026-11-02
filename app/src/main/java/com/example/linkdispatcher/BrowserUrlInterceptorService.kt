@@ -2,30 +2,27 @@ package com.example.linkdispatcher
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * BrowserUrlInterceptorService:
- * Giải quyết triệt để vấn đề "Khi đã ở sẵn bên trong Trình duyệt (Chrome, Brave, Firefox, Samsung Internet...)
- * mà nhấn vào link YouTube / YouTube Music / Spotify thì trình duyệt tự mở tab web chứ không gọi Default Browser".
+ * Bắt link YouTube / YouTube Music / Spotify NGAY BÊN TRONG TRÌNH DUYỆT (Chrome, Brave, Firefox, Samsung Internet...).
  *
- * Cơ chế hoạt động:
- * 1. Chỉ lắng nghe khi ứng dụng đang mở trên màn hình là một Trình duyệt Web (được phát hiện động).
- * 2. Đọc thanh địa chỉ (URL Bar) của trình duyệt (bỏ qua nếu người dùng đang gõ phím - isFocused == true).
- * 3. Ngay khi phát hiện URL trên thanh địa chỉ vừa chuyển sang link video/nhạc thuộc luồng đang BẬT
- *    (ví dụ: m.youtube.com/watch?v=..., youtube.com/shorts/..., youtu.be/..., music.youtube.com/watch?v=..., open.spotify.com/track/...),
- *    dịch vụ lập tức bắn Intent sang ứng dụng Mod (ví dụ app.morphe.android.youtube) và tự động bấm Back
- *    trên trình duyệt để trả trình duyệt về trang trước đó.
+ * ĐÃ SỬA TRIỆT ĐỂ LỖI VĂNG NGƯỢC LẠI CHROME & LẶP VÔ TẬN (TRONG VIDEO):
+ * 1. Đã XÓA hoàn toàn lệnh performGlobalAction(GLOBAL_ACTION_BACK) sau khi mở App Mod:
+ *    Trước đây lệnh Back chạy sau 120ms lúc YouTube Morphe vừa hiện logo "M", khiến hệ thống bấm Back
+ *    ngay trên YouTube Morphe làm văng ngược về lại trình duyệt Chrome.
+ * 2. Chống lặp tuyệt đối theo trạng thái URL (State-based Deduplication):
+ *    Khi đã phóng 1 video (lastInterceptedKey), dịch vụ sẽ KHÔNG bao giờ tự phóng lại cùng video đó
+ *    dù sau 3 giây hay 10 phút, cho tới khi thanh địa chỉ trình duyệt thực sự chuyển sang trang khác
+ *    (ví dụ: quay về trang chủ m.youtube.com, m.youtube.com/feed, google.com hoặc bấm sang video khác).
+ * 3. Chỉ đọc đúng thanh địa chỉ (url_bar) của trình duyệt và kiểm tra chặt chẽ ID video/playlist hợp lệ.
  */
 class BrowserUrlInterceptorService : AccessibilityService() {
 
-    private val mainHandler = Handler(Looper.getMainLooper())
     private var lastInterceptedKey: String = ""
     private var lastInterceptedTimeMs: Long = 0L
     private var cachedBrowserPackages: Set<String> = emptySet()
@@ -43,49 +40,56 @@ class BrowserUrlInterceptorService : AccessibilityService() {
         )
         if (!interceptorEnabled) return
 
-        // Chỉ kiểm tra trên các ứng dụng Trình duyệt Web đã phát hiện trên thiết bị
+        // Chỉ xử lý khi cửa sổ hiện tại là một Trình duyệt Web trên máy
         if (!isDetectedBrowserPackage(pkgName)) return
 
         val rootNode = rootInActiveWindow ?: return
-        val rawUrlText = extractUrlFromBrowserWindow(rootNode, pkgName) ?: return
+        val rawUrlBarText = extractBrowserAddressBarText(rootNode, pkgName) ?: return
 
-        val normalizedUrl = normalizeBrowserBarUrl(rawUrlText) ?: return
+        val normalizedUrl = normalizeBrowserBarUrl(rawUrlBarText) ?: return
         val uri = try {
             Uri.parse(normalizedUrl)
         } catch (_: Exception) {
             return
         }
 
-        // Chỉ bắt các đường dẫn thực sự là nội dung cần mở App (watch, shorts, live, playlist, track...)
-        // Không bắt trang chủ m.youtube.com trống để tránh gây khó chịu nếu người dùng chỉ vào trang chủ
-        if (!isActionableMediaDeepLink(uri)) return
+        // Bóc tách khóa định danh duy nhất cho video/nhạc (nếu là link video/nhạc hợp lệ)
+        val mediaKey = extractActionableMediaKey(uri)
 
-        val dedupKey = "${uri.host?.lowercase()}${uri.path}?${uri.getQueryParameter("v") ?: uri.getQueryParameter("list") ?: ""}"
-        val now = System.currentTimeMillis()
-        if (dedupKey == lastInterceptedKey && (now - lastInterceptedTimeMs) < COOLDOWN_MS) {
+        if (mediaKey == null) {
+            // Người dùng đang ở trang thường (trang chủ m.youtube.com, /feed, /results, google.com...)
+            // -> Reset khóa để lần tới bấm vào bất kỳ video nào (kể cả video cũ) đều mở YouTube Mod ngay
+            if (isDefinitelyNonVideoPage(uri)) {
+                lastInterceptedKey = ""
+            }
             return
         }
+
+        val now = System.currentTimeMillis()
+
+        // Chống lặp tuyệt đối: Nếu vẫn là cùng một video đang hiển thị trên thanh địa chỉ trình duyệt
+        // thì KHÔNG mở lại lần 2 (ngăn chặn hoàn toàn vòng lặp 3 giây trong video)
+        if (mediaKey == lastInterceptedKey) {
+            return
+        }
+
+        // Khoảng nghỉ an toàn tối thiểu khi chuyển tiếp liên tục
+        if (now - lastInterceptedTimeMs < MIN_TRANSITION_GAP_MS) {
+            return
+        }
+
+        // Đánh dấu khóa trước khi bắn Intent để mọi sự kiện Accessibility phát sinh thêm đều bị chặn ngay
+        lastInterceptedKey = mediaKey
+        lastInterceptedTimeMs = now
 
         val dispatched = RouterActivity.dispatchUrlFromBrowserService(
             context = this,
             httpsUrl = normalizedUrl
         )
 
-        if (dispatched) {
-            lastInterceptedKey = dedupKey
-            lastInterceptedTimeMs = now
-
-            // Tự động bấm Back trên trình duyệt để đóng tab web YouTube thừa vừa mở
-            val autoBack = prefs.getBoolean(RouterActivity.KEY_IN_BROWSER_AUTO_BACK, true)
-            if (autoBack) {
-                mainHandler.postDelayed({
-                    try {
-                        performGlobalAction(GLOBAL_ACTION_BACK)
-                    } catch (_: Exception) {
-                        // Bỏ qua
-                    }
-                }, 120L)
-            }
+        if (!dispatched) {
+            // Nếu luồng đang tắt hoặc chưa cài Mod thì không khóa
+            lastInterceptedKey = ""
         }
     }
 
@@ -104,11 +108,15 @@ class BrowserUrlInterceptorService : AccessibilityService() {
         return pkgName in cachedBrowserPackages
     }
 
-    private fun extractUrlFromBrowserWindow(
+    /**
+     * Đọc chính xác nội dung thanh địa chỉ (URL Bar) của trình duyệt.
+     * Nếu tìm thấy View ID của thanh địa chỉ thì chỉ lấy giá trị từ node đó,
+     * tuyệt đối không quét nhầm xuống nội dung trang web bên dưới.
+     */
+    private fun extractBrowserAddressBarText(
         rootNode: AccessibilityNodeInfo,
         browserPkg: String
     ): String? {
-        // 1. Tìm nhanh theo các View ID thanh địa chỉ phổ biến của các trình duyệt
         for (idSuffix in KNOWN_URL_BAR_ID_SUFFIXES) {
             val fullViewId = "$browserPkg:id/$idSuffix"
             val matchedNodes = try {
@@ -118,22 +126,22 @@ class BrowserUrlInterceptorService : AccessibilityService() {
             }
             if (!matchedNodes.isNullOrEmpty()) {
                 for (node in matchedNodes) {
-                    // Nếu người dùng đang bấm vào thanh địa chỉ để gõ chữ (isFocused == true) thì không tự cắt ngang
-                    if (node.isFocused) continue
+                    // Nếu người dùng đang đặt con trỏ gõ chữ trên thanh địa chỉ thì không can thiệp
+                    if (node.isFocused) return null
                     val text = node.text?.toString()?.trim()
-                    if (!text.isNullOrBlank() && looksLikeTargetDomainUrl(text)) {
+                    if (!text.isNullOrBlank()) {
                         return text
                     }
                 }
+                return null
             }
         }
 
-        // 2. Cơ chế quét dự phòng thông minh cho mọi trình duyệt lạ (Via, Cốc Cốc, DuckDuckGo, Kiwi...):
-        // Quét tối đa 45 node đầu tiên trên thanh công cụ để tìm chuỗi URL khớp tên miền mục tiêu
-        return scanNodeTreeForUrl(rootNode, depth = 0, maxDepth = 7)
+        // Dự phòng cho trình duyệt không dùng ID chuẩn: chỉ quét tầng trên cùng (Toolbar)
+        return scanTopToolbarForUrl(rootNode, depth = 0, maxDepth = 5)
     }
 
-    private fun scanNodeTreeForUrl(
+    private fun scanTopToolbarForUrl(
         node: AccessibilityNodeInfo?,
         depth: Int,
         maxDepth: Int
@@ -141,73 +149,134 @@ class BrowserUrlInterceptorService : AccessibilityService() {
         if (node == null || depth > maxDepth) return null
         if (!node.isFocused) {
             val text = node.text?.toString()?.trim()
-            if (!text.isNullOrBlank() && text.length < 300 && !text.contains(" ") && looksLikeTargetDomainUrl(text)) {
+            if (!text.isNullOrBlank() && text.length < 260 && !text.contains(" ") && looksLikeUrlText(text)) {
                 return text
             }
         }
 
-        val count = node.childCount.coerceAtMost(12)
+        val count = node.childCount.coerceAtMost(8)
         for (i in 0 until count) {
             val child = try {
                 node.getChild(i)
             } catch (_: Exception) {
                 null
             } ?: continue
-            val found = scanNodeTreeForUrl(child, depth + 1, maxDepth)
+            val found = scanTopToolbarForUrl(child, depth + 1, maxDepth)
             if (found != null) return found
         }
         return null
     }
 
-    private fun looksLikeTargetDomainUrl(rawText: String): Boolean {
+    private fun looksLikeUrlText(rawText: String): Boolean {
         val cleaned = rawText.lowercase()
             .removePrefix("https://")
             .removePrefix("http://")
         return TARGET_DOMAIN_PREFIXES.any { domain ->
-            cleaned.startsWith("$domain/") || cleaned.startsWith("www.$domain/")
+            cleaned == domain ||
+                cleaned == "www.$domain" ||
+                cleaned.startsWith("$domain/") ||
+                cleaned.startsWith("www.$domain/")
         }
     }
 
     private fun normalizeBrowserBarUrl(rawText: String): String? {
         val trimmed = rawText.trim()
-        if (trimmed.contains(" ")) return null
+        if (trimmed.isEmpty() || trimmed.contains(" ")) return null
         return when {
             trimmed.startsWith("https://", ignoreCase = true) -> trimmed
             trimmed.startsWith("http://", ignoreCase = true) ->
                 "https://" + trimmed.substring(7)
-            else -> "https://$trimmed"
+            trimmed.contains(".") -> "https://$trimmed"
+            else -> null
         }
     }
 
-    private fun isActionableMediaDeepLink(uri: Uri): Boolean {
+    /**
+     * Kiểm tra xem trình duyệt đang ở trang chủ / trang feed / trang tìm kiếm (không phải trang phát video)
+     * để xóa khóa lastInterceptedKey, cho phép bấm lại video bất kỳ.
+     */
+    private fun isDefinitelyNonVideoPage(uri: Uri): Boolean {
         val host = uri.host?.lowercase() ?: return false
-        val path = uri.path?.lowercase() ?: return false
-        val firstSeg = uri.pathSegments.firstOrNull()?.lowercase() ?: ""
+        val segments = uri.pathSegments
+        val firstSeg = segments.firstOrNull()?.lowercase() ?: ""
 
-        // YouTube & YouTube Music
+        if (host.contains("youtube.com")) {
+            if (segments.isEmpty()) return true
+            if (firstSeg in setOf("feed", "results", "channel", "c", "user", "gaming", "account", "reporthistory")) {
+                return true
+            }
+        }
+        if (!host.contains("youtube.com") && host != "youtu.be" && !host.contains("spotify.com") && !host.contains("facebook.com") && host != "fb.watch") {
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Trả về khóa định danh duy nhất (VD: "yt_video:dQw4w9WgXcQ" hoặc "yt_shorts:abc123xyz")
+     * CHỈ KHI URL trên thanh địa chỉ có đầy đủ ID hợp lệ.
+     * Nếu URL bị cụt (như "m.youtube.com/shor" hoặc "m.youtube.com/watch" chưa có ?v=) sẽ trả về null
+     * để không bao giờ bắn URL lỗi sang YouTube Morphe.
+     */
+    private fun extractActionableMediaKey(uri: Uri): String? {
+        val host = uri.host?.lowercase() ?: return null
+        val segments = uri.pathSegments
+        val firstSeg = segments.firstOrNull()?.lowercase() ?: ""
+
+        // 1. YouTube & YouTube Music
         if (host.contains("youtube.com") || host == "youtu.be") {
-            if (host == "youtu.be" && firstSeg.isNotBlank()) return true
-            if (firstSeg in setOf("watch", "shorts", "live", "playlist", "embed", "v")) {
-                return true
+            if (host == "youtu.be") {
+                val id = firstSeg.takeIf { it.length >= 6 } ?: return null
+                return "yt_shortlink:$id"
             }
-            if (!uri.getQueryParameter("v").isNullOrBlank() || !uri.getQueryParameter("list").isNullOrBlank()) {
-                return true
+
+            if (firstSeg == "watch") {
+                val videoId = uri.getQueryParameter("v")?.takeIf { it.length >= 6 }
+                val listId = uri.getQueryParameter("list")?.takeIf { it.length >= 6 }
+                val keyId = videoId ?: listId ?: return null
+                return "yt_watch:$host:$keyId"
             }
-            return false
+
+            if (firstSeg == "shorts" || firstSeg == "live" || firstSeg == "embed" || firstSeg == "v") {
+                val videoId = segments.getOrNull(1)?.takeIf { it.length >= 6 } ?: return null
+                return "yt_$firstSeg:$videoId"
+            }
+
+            if (firstSeg == "playlist") {
+                val listId = uri.getQueryParameter("list")?.takeIf { it.length >= 6 } ?: return null
+                return "yt_playlist:$listId"
+            }
+
+            return null
         }
 
-        // Spotify
+        // 2. Spotify
         if (host.contains("spotify.com") || host == "spotify.link" || host == "spoti.fi") {
-            return firstSeg in setOf("track", "album", "playlist", "artist", "episode", "show") ||
-                host == "spotify.link" || host == "spoti.fi"
+            if (host == "spotify.link" || host == "spoti.fi") {
+                val code = firstSeg.takeIf { it.length >= 4 } ?: return null
+                return "spotify_short:$code"
+            }
+            if (firstSeg in setOf("track", "album", "playlist", "artist", "episode", "show")) {
+                val id = segments.getOrNull(1)?.takeIf { it.length >= 6 } ?: return null
+                return "spotify_$firstSeg:$id"
+            }
+            return null
         }
 
-        // Facebook Watch / Video
+        // 3. Facebook Watch / Video
         if (host.contains("facebook.com") || host == "fb.watch") {
-            return host == "fb.watch" || path.contains("/watch") || path.contains("/videos/") || path.contains("/reel/")
+            if (host == "fb.watch") {
+                val id = firstSeg.takeIf { it.length >= 4 } ?: return null
+                return "fb_watch:$id"
+            }
+            if (firstSeg == "watch" || firstSeg == "reel" || segments.contains("videos")) {
+                val id = uri.getQueryParameter("v") ?: segments.lastOrNull()?.takeIf { it.length >= 5 } ?: return null
+                return "fb_video:$id"
+            }
+            return null
         }
 
-        // Mạng xã hội (TikTok, Instagram Reel/Post, X Status, Reddit)
+        // 4. Mạng xã hội (TikTok, Instagram Reel/Post, X Status, Reddit)
         if (
             host.contains("tiktok.com") ||
             host.contains("instagram.com") ||
@@ -216,14 +285,17 @@ class BrowserUrlInterceptorService : AccessibilityService() {
             host.contains("twitter.com") ||
             host.contains("reddit.com")
         ) {
-            return uri.pathSegments.size >= 2 || host == "vm.tiktok.com" || host == "vt.tiktok.com"
+            if (segments.size >= 2) {
+                val lastSeg = segments.lastOrNull()?.takeIf { it.length >= 4 } ?: return null
+                return "social:$host:$lastSeg"
+            }
         }
 
-        return false
+        return null
     }
 
     companion object {
-        private const val COOLDOWN_MS = 2800L
+        private const val MIN_TRANSITION_GAP_MS = 900L
 
         private val KNOWN_URL_BAR_ID_SUFFIXES = listOf(
             "url_bar",
@@ -254,9 +326,6 @@ class BrowserUrlInterceptorService : AccessibilityService() {
             "reddit.com"
         )
 
-        /**
-         * Kiểm tra xem người dùng đã bật dịch vụ "Bắt link trong Trình duyệt" trong Cài đặt Hỗ trợ tiếp cận chưa
-         */
         fun isServiceEnabled(context: Context): Boolean {
             val expectedComponentName = "${context.packageName}/${BrowserUrlInterceptorService::class.java.canonicalName}"
             val enabledServices = Settings.Secure.getString(

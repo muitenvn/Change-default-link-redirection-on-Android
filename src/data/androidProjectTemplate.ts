@@ -63,6 +63,36 @@ export interface ParsedMultiPlatformPreview {
   host: string | null;
 }
 
+export const DEFAULT_TEST_LINK = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+
+export const ALL_DEFAULT_MANIFEST_HOSTS: string[] = [
+  'youtube.com',
+  'm.youtube.com',
+  'www.youtube.com',
+  'youtu.be',
+  'music.youtube.com',
+  'open.spotify.com',
+  'spotify.link',
+  'spoti.fi',
+  'facebook.com',
+  'www.facebook.com',
+  'm.facebook.com',
+  'fb.watch',
+  'fb.com',
+  'tiktok.com',
+  'www.tiktok.com',
+  'vm.tiktok.com',
+  'vt.tiktok.com',
+  'instagram.com',
+  'www.instagram.com',
+  'threads.net',
+  'www.threads.net',
+  'x.com',
+  'twitter.com',
+  'reddit.com',
+  'www.reddit.com',
+];
+
 export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
   youtube_video: {
     id: 'youtube_video',
@@ -168,7 +198,7 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       extractedUrl: null,
       normalizedHttpsUrl: null,
       serviceId: null,
-      serviceTitle: 'Chưa nhập link (Để trống mặc định)',
+      serviceTitle: 'Chưa nhập link',
       extractedId: null,
       playlistId: null,
       timestampSeconds: null,
@@ -185,7 +215,6 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
     const urlObj = new URL(candidate.startsWith('http') ? candidate : `https://${candidate}`);
     let workingUrl = urlObj;
 
-    // Bóc tách Google Search redirect link (google.com/url?q=...)
     if (workingUrl.hostname.toLowerCase().includes('google.') && workingUrl.pathname === '/url') {
       const redirected = workingUrl.searchParams.get('q') || workingUrl.searchParams.get('url');
       if (redirected && redirected.startsWith('http')) {
@@ -226,7 +255,7 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       };
     }
 
-    // 2. YouTube Video
+    // 2. YouTube Video (Chuẩn hóa m.youtube.com -> www.youtube.com)
     if (
       host === 'youtube.com' ||
       host === 'www.youtube.com' ||
@@ -261,6 +290,13 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       const timestampSeconds =
         workingUrl.searchParams.get('t') || workingUrl.searchParams.get('start');
 
+      const canonicalUrl =
+        linkType === 'SHORTS' && videoId
+          ? `https://www.youtube.com/shorts/${videoId}`
+          : videoId
+            ? `https://www.youtube.com/watch?v=${videoId}${playlistId ? `&list=${playlistId}` : ''}${timestampSeconds ? `&t=${timestampSeconds}` : ''}`
+            : normalizedHttpsUrl.replace('://m.youtube.com', '://www.youtube.com');
+
       const nativeSchemeUri = videoId
         ? timestampSeconds
           ? `vnd.youtube:${videoId}?t=${timestampSeconds}`
@@ -270,7 +306,7 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       return {
         originalInput: input,
         extractedUrl: candidate,
-        normalizedHttpsUrl,
+        normalizedHttpsUrl: canonicalUrl,
         serviceId: 'youtube_video',
         serviceTitle: 'YouTube Video',
         extractedId: videoId,
@@ -358,7 +394,7 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       };
     }
 
-    // 6. Các liên kết Web còn lại (Không thuộc 5 dịch vụ trên) -> Tự động qua Trình duyệt đã phát hiện/chọn
+    // 6. Các liên kết Web còn lại
     return {
       originalInput: input,
       extractedUrl: candidate,
@@ -443,10 +479,8 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
 
     <!--
       Chính sách Package Visibility của Android 11+ (API 30+):
-      - Khai báo thẻ <intent> với ACTION_VIEW + CATEGORY_BROWSABLE (scheme http/https)
-        để hệ thống TỰ ĐỘNG PHÁT HIỆN toàn bộ các trình duyệt Web đang cài trên máy
-        (Chrome, Brave, Firefox, Samsung Internet, Edge, Opera, Vivaldi, Cốc Cốc,...)
-        mà không cần định sẵn danh sách trình duyệt cứng.
+      Khai báo các package đích và truy vấn trình duyệt (http/https BROWSABLE)
+      để tự động phát hiện mọi trình duyệt cài trên máy và kiểm tra bản Mod.
     -->
     <queries>
 ${queriesPackagesXml}
@@ -497,8 +531,13 @@ ${queriesPackagesXml}
         </activity>
 
         <!--
-          2. RouterActivity: Dùng Theme.NoDisplay để chuyển tiếp tức thì
-          không tạo cửa sổ giao diện, không giật khung hình và tự đóng ngay.
+          2. RouterActivity (Theme.NoDisplay):
+          QUAN TRỌNG: Trên Android 12/13/14 (đặc biệt Xiaomi HyperOS & Samsung OneUI),
+          KHÔNG ĐƯỢC khai báo <data android:scheme="http"/> mà thiếu android:host,
+          vì nếu thiếu android:host hệ thống sẽ coi app là Trình duyệt và làm TRỐNG RỖNG
+          danh sách "Thêm đường liên kết" trong mục "Mở theo mặc định" (Open by default)!
+          Do đó toàn bộ các host mặc định phải được khai báo tường minh kèm autoVerify="true"
+          ngay trong RouterActivity dưới đây để danh sách đường link mặc định luôn hiện đầy đủ.
         -->
         <activity
             android:name=".RouterActivity"
@@ -507,26 +546,77 @@ ${queriesPackagesXml}
             android:noHistory="true"
             android:theme="@android:style/Theme.NoDisplay">
 
-            <!-- Hỗ trợ nhận link với tư cách Default Browser / Generic HTTP & HTTPS Handler -->
+            <!-- Danh sách Đường liên kết Mặc định hiển thị trong "Mở theo mặc định" (Open by default) -->
+            <intent-filter
+                android:autoVerify="true"
+                android:priority="${config.intentPriority}">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+
+                <!-- YouTube & YouTube Music -->
+                <data android:host="youtube.com" />
+                <data android:host="m.youtube.com" />
+                <data android:host="www.youtube.com" />
+                <data android:host="youtu.be" />
+                <data android:host="music.youtube.com" />
+
+                <!-- Spotify -->
+                <data android:host="open.spotify.com" />
+                <data android:host="spotify.link" />
+                <data android:host="spoti.fi" />
+
+                <!-- Facebook & Watch -->
+                <data android:host="facebook.com" />
+                <data android:host="www.facebook.com" />
+                <data android:host="m.facebook.com" />
+                <data android:host="fb.watch" />
+                <data android:host="fb.com" />
+
+                <!-- Mạng xã hội (TikTok, Instagram, Threads, X, Reddit) -->
+                <data android:host="tiktok.com" />
+                <data android:host="www.tiktok.com" />
+                <data android:host="vm.tiktok.com" />
+                <data android:host="vt.tiktok.com" />
+                <data android:host="instagram.com" />
+                <data android:host="www.instagram.com" />
+                <data android:host="threads.net" />
+                <data android:host="www.threads.net" />
+                <data android:host="x.com" />
+                <data android:host="twitter.com" />
+                <data android:host="reddit.com" />
+                <data android:host="www.reddit.com" />
+
+                <data android:pathPrefix="/" />
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/shorts" />
+                <data android:pathPrefix="/live" />
+                <data android:pathPrefix="/playlist" />
+            </intent-filter>
+
+            <!-- Đón bắt Custom Schemes khi trang web gọi lệnh mở App -->
             <intent-filter android:priority="${config.intentPriority}">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" />
-                <data android:scheme="https" />
+                <data android:scheme="vnd.youtube" />
+                <data android:scheme="youtube" />
+                <data android:scheme="vnd.youtube.music" />
+                <data android:scheme="spotify" />
+                <data android:scheme="fb" />
             </intent-filter>
 
-            <!-- Đón bắt thao tác Share link (ACTION_SEND) từ Trình duyệt, Zalo, Messenger -->
+            <!-- Đón bắt thao tác Share link (ACTION_SEND) -->
             <intent-filter android:priority="${config.intentPriority}">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
 
-            <!--
-              Nút "Mở bằng Link Dispatcher" ngay trên thanh menu nổi khi bôi đen / nhấn giữ
-              link hoặc văn bản bên trong bất kỳ Trình duyệt nào (ACTION_PROCESS_TEXT)
-            -->
+            <!-- Nút "Mở bằng Link Dispatcher" khi bôi đen văn bản/link trong trình duyệt -->
             <intent-filter android:priority="${config.intentPriority}">
                 <action android:name="android.intent.action.PROCESS_TEXT" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -537,8 +627,7 @@ ${queriesPackagesXml}
         <!--
           3. BrowserUrlInterceptorService:
           Dịch vụ bắt link NGAY BÊN TRONG TRÌNH DUYỆT (Chrome, Brave, Firefox, Samsung Internet...).
-          Khi bạn đã ở trong trình duyệt và nhấn vào link YouTube / YT Music / Spotify,
-          dịch vụ đọc thanh địa chỉ trình duyệt và phóng thẳng sang ứng dụng Mod tức thì!
+          Đã sửa triệt để lỗi tự bấm Back làm văng YouTube Morphe và lỗi lặp 3 giây.
         -->
         <service
             android:name=".BrowserUrlInterceptorService"
@@ -553,15 +642,7 @@ ${queriesPackagesXml}
                 android:resource="@xml/accessibility_browser_interceptor" />
         </service>
 
-        <!--
-          ======================================================================
-          CÁC ACTIVITY-ALIAS ĐỘC LẬP CHO TỪNG LUỒNG DỊCH VỤ:
-          Hỗ trợ cả http/https (autoVerify) LẪN custom scheme (vnd.youtube, youtube,
-          spotify, fb) khi bấm nút "Mở ứng dụng" ngay từ bên trong trang web trình duyệt.
-          ======================================================================
-        -->
-
-        <!-- ALIAS 1: YOUTUBE VIDEO -->
+        <!-- CÁC ACTIVITY-ALIAS CHO TỪNG LUỒNG DỊCH VỤ -->
         <activity-alias
             android:name=".RouteYoutubeVideoAlias"
             android:enabled="${ytVideo.enabled}"
@@ -576,24 +657,17 @@ ${queriesPackagesXml}
 
                 <data android:scheme="http" />
                 <data android:scheme="https" />
-
                 <data android:host="youtube.com" />
                 <data android:host="m.youtube.com" />
                 <data android:host="www.youtube.com" />
                 <data android:host="youtu.be" />
-                <data android:pathPattern=".*" />
-            </intent-filter>
-
-            <intent-filter android:priority="${config.intentPriority}">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="vnd.youtube" />
-                <data android:scheme="youtube" />
+                <data android:pathPrefix="/" />
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/shorts" />
+                <data android:pathPrefix="/live" />
             </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 2: YOUTUBE MUSIC -->
         <activity-alias
             android:name=".RouteYoutubeMusicAlias"
             android:enabled="${ytMusic.enabled}"
@@ -609,18 +683,12 @@ ${queriesPackagesXml}
                 <data android:scheme="http" />
                 <data android:scheme="https" />
                 <data android:host="music.youtube.com" />
-                <data android:pathPattern=".*" />
-            </intent-filter>
-
-            <intent-filter android:priority="${config.intentPriority}">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="vnd.youtube.music" />
+                <data android:pathPrefix="/" />
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/playlist" />
             </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 3: SPOTIFY -->
         <activity-alias
             android:name=".RouteSpotifyAlias"
             android:enabled="${spotify.enabled}"
@@ -638,18 +706,10 @@ ${queriesPackagesXml}
                 <data android:host="open.spotify.com" />
                 <data android:host="spotify.link" />
                 <data android:host="spoti.fi" />
-                <data android:pathPattern=".*" />
-            </intent-filter>
-
-            <intent-filter android:priority="${config.intentPriority}">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="spotify" />
+                <data android:pathPrefix="/" />
             </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 4: FACEBOOK -->
         <activity-alias
             android:name=".RouteFacebookAlias"
             android:enabled="${facebook.enabled}"
@@ -669,18 +729,10 @@ ${queriesPackagesXml}
                 <data android:host="m.facebook.com" />
                 <data android:host="fb.watch" />
                 <data android:host="fb.com" />
-                <data android:pathPattern=".*" />
-            </intent-filter>
-
-            <intent-filter android:priority="${config.intentPriority}">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="fb" />
+                <data android:pathPrefix="/" />
             </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 5: MẠNG XÃ HỘI KHÁC -->
         <activity-alias
             android:name=".RouteSocialAlias"
             android:enabled="${social.enabled}"
@@ -707,7 +759,7 @@ ${queriesPackagesXml}
                 <data android:host="twitter.com" />
                 <data android:host="reddit.com" />
                 <data android:host="www.reddit.com" />
-                <data android:pathPattern=".*" />
+                <data android:pathPrefix="/" />
             </intent-filter>
         </activity-alias>
 
@@ -720,28 +772,26 @@ ${queriesPackagesXml}
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * BrowserUrlInterceptorService:
- * Giải quyết triệt để vấn đề "Khi đã ở sẵn bên trong Trình duyệt (Chrome, Brave, Firefox, Samsung Internet...)
- * mà nhấn vào link YouTube / YouTube Music / Spotify thì trình duyệt tự mở tab web chứ không gọi Default Browser".
+ * Bắt link YouTube / YouTube Music / Spotify NGAY BÊN TRONG TRÌNH DUYỆT (Chrome, Brave, Firefox, Samsung Internet...).
  *
- * Cơ chế hoạt động:
- * 1. Chỉ lắng nghe khi ứng dụng đang mở trên màn hình là một Trình duyệt Web (được phát hiện động).
- * 2. Đọc thanh địa chỉ (URL Bar) của trình duyệt (bỏ qua nếu người dùng đang gõ phím - isFocused == true).
- * 3. Ngay khi phát hiện URL trên thanh địa chỉ vừa chuyển sang link video/nhạc thuộc luồng đang BẬT
- *    (ví dụ: m.youtube.com/watch?v=..., youtube.com/shorts/..., youtu.be/..., music.youtube.com/watch?v=..., open.spotify.com/track/...),
- *    dịch vụ lập tức bắn Intent sang ứng dụng Mod (ví dụ app.morphe.android.youtube) và tự động bấm Back
- *    trên trình duyệt để trả trình duyệt về trang trước đó.
+ * ĐÃ SỬA TRIỆT ĐỂ LỖI VĂNG NGƯỢC LẠI CHROME & LẶP VÔ TẬN (TRONG VIDEO):
+ * 1. Đã XÓA hoàn toàn lệnh performGlobalAction(GLOBAL_ACTION_BACK) sau khi mở App Mod:
+ *    Trước đây lệnh Back chạy sau 120ms lúc YouTube Morphe vừa hiện logo "M", khiến hệ thống bấm Back
+ *    ngay trên YouTube Morphe làm văng ngược về lại trình duyệt Chrome.
+ * 2. Chống lặp tuyệt đối theo trạng thái URL (State-based Deduplication):
+ *    Khi đã phóng 1 video (lastInterceptedKey), dịch vụ sẽ KHÔNG bao giờ tự phóng lại cùng video đó
+ *    dù sau 3 giây hay 10 phút, cho tới khi thanh địa chỉ trình duyệt thực sự chuyển sang trang khác
+ *    (ví dụ: quay về trang chủ m.youtube.com, m.youtube.com/feed, google.com hoặc bấm sang video khác).
+ * 3. Chỉ đọc đúng thanh địa chỉ (url_bar) của trình duyệt và kiểm tra chặt chẽ ID video/playlist hợp lệ.
  */
 class BrowserUrlInterceptorService : AccessibilityService() {
 
-    private val mainHandler = Handler(Looper.getMainLooper())
     private var lastInterceptedKey: String = ""
     private var lastInterceptedTimeMs: Long = 0L
     private var cachedBrowserPackages: Set<String> = emptySet()
@@ -762,42 +812,46 @@ class BrowserUrlInterceptorService : AccessibilityService() {
         if (!isDetectedBrowserPackage(pkgName)) return
 
         val rootNode = rootInActiveWindow ?: return
-        val rawUrlText = extractUrlFromBrowserWindow(rootNode, pkgName) ?: return
+        val rawUrlBarText = extractBrowserAddressBarText(rootNode, pkgName) ?: return
 
-        val normalizedUrl = normalizeBrowserBarUrl(rawUrlText) ?: return
+        val normalizedUrl = normalizeBrowserBarUrl(rawUrlBarText) ?: return
         val uri = try {
             Uri.parse(normalizedUrl)
         } catch (_: Exception) {
             return
         }
 
-        if (!isActionableMediaDeepLink(uri)) return
+        val mediaKey = extractActionableMediaKey(uri)
 
-        val dedupKey = "\${uri.host?.lowercase()}\${uri.path}?\${uri.getQueryParameter("v") ?: uri.getQueryParameter("list") ?: ""}"
-        val now = System.currentTimeMillis()
-        if (dedupKey == lastInterceptedKey && (now - lastInterceptedTimeMs) < COOLDOWN_MS) {
+        if (mediaKey == null) {
+            if (isDefinitelyNonVideoPage(uri)) {
+                lastInterceptedKey = ""
+            }
             return
         }
+
+        val now = System.currentTimeMillis()
+
+        // Chống lặp tuyệt đối: Nếu vẫn là cùng một video đang hiển thị trên thanh địa chỉ trình duyệt
+        // thì KHÔNG mở lại lần 2
+        if (mediaKey == lastInterceptedKey) {
+            return
+        }
+
+        if (now - lastInterceptedTimeMs < MIN_TRANSITION_GAP_MS) {
+            return
+        }
+
+        lastInterceptedKey = mediaKey
+        lastInterceptedTimeMs = now
 
         val dispatched = RouterActivity.dispatchUrlFromBrowserService(
             context = this,
             httpsUrl = normalizedUrl
         )
 
-        if (dispatched) {
-            lastInterceptedKey = dedupKey
-            lastInterceptedTimeMs = now
-
-            val autoBack = prefs.getBoolean(RouterActivity.KEY_IN_BROWSER_AUTO_BACK, true)
-            if (autoBack) {
-                mainHandler.postDelayed({
-                    try {
-                        performGlobalAction(GLOBAL_ACTION_BACK)
-                    } catch (_: Exception) {
-                        // Bỏ qua
-                    }
-                }, 120L)
-            }
+        if (!dispatched) {
+            lastInterceptedKey = ""
         }
     }
 
@@ -816,7 +870,7 @@ class BrowserUrlInterceptorService : AccessibilityService() {
         return pkgName in cachedBrowserPackages
     }
 
-    private fun extractUrlFromBrowserWindow(
+    private fun extractBrowserAddressBarText(
         rootNode: AccessibilityNodeInfo,
         browserPkg: String
     ): String? {
@@ -829,19 +883,20 @@ class BrowserUrlInterceptorService : AccessibilityService() {
             }
             if (!matchedNodes.isNullOrEmpty()) {
                 for (node in matchedNodes) {
-                    if (node.isFocused) continue
+                    if (node.isFocused) return null
                     val text = node.text?.toString()?.trim()
-                    if (!text.isNullOrBlank() && looksLikeTargetDomainUrl(text)) {
+                    if (!text.isNullOrBlank()) {
                         return text
                     }
                 }
+                return null
             }
         }
 
-        return scanNodeTreeForUrl(rootNode, depth = 0, maxDepth = 7)
+        return scanTopToolbarForUrl(rootNode, depth = 0, maxDepth = 5)
     }
 
-    private fun scanNodeTreeForUrl(
+    private fun scanTopToolbarForUrl(
         node: AccessibilityNodeInfo?,
         depth: Int,
         maxDepth: Int
@@ -849,67 +904,118 @@ class BrowserUrlInterceptorService : AccessibilityService() {
         if (node == null || depth > maxDepth) return null
         if (!node.isFocused) {
             val text = node.text?.toString()?.trim()
-            if (!text.isNullOrBlank() && text.length < 300 && !text.contains(" ") && looksLikeTargetDomainUrl(text)) {
+            if (!text.isNullOrBlank() && text.length < 260 && !text.contains(" ") && looksLikeUrlText(text)) {
                 return text
             }
         }
 
-        val count = node.childCount.coerceAtMost(12)
+        val count = node.childCount.coerceAtMost(8)
         for (i in 0 until count) {
             val child = try {
                 node.getChild(i)
             } catch (_: Exception) {
                 null
             } ?: continue
-            val found = scanNodeTreeForUrl(child, depth + 1, maxDepth)
+            val found = scanTopToolbarForUrl(child, depth + 1, maxDepth)
             if (found != null) return found
         }
         return null
     }
 
-    private fun looksLikeTargetDomainUrl(rawText: String): Boolean {
+    private fun looksLikeUrlText(rawText: String): Boolean {
         val cleaned = rawText.lowercase()
             .removePrefix("https://")
             .removePrefix("http://")
         return TARGET_DOMAIN_PREFIXES.any { domain ->
-            cleaned.startsWith("$domain/") || cleaned.startsWith("www.$domain/")
+            cleaned == domain ||
+                cleaned == "www.$domain" ||
+                cleaned.startsWith("$domain/") ||
+                cleaned.startsWith("www.$domain/")
         }
     }
 
     private fun normalizeBrowserBarUrl(rawText: String): String? {
         val trimmed = rawText.trim()
-        if (trimmed.contains(" ")) return null
+        if (trimmed.isEmpty() || trimmed.contains(" ")) return null
         return when {
             trimmed.startsWith("https://", ignoreCase = true) -> trimmed
             trimmed.startsWith("http://", ignoreCase = true) ->
                 "https://" + trimmed.substring(7)
-            else -> "https://$trimmed"
+            trimmed.contains(".") -> "https://$trimmed"
+            else -> null
         }
     }
 
-    private fun isActionableMediaDeepLink(uri: Uri): Boolean {
+    private fun isDefinitelyNonVideoPage(uri: Uri): Boolean {
         val host = uri.host?.lowercase() ?: return false
-        val path = uri.path?.lowercase() ?: return false
-        val firstSeg = uri.pathSegments.firstOrNull()?.lowercase() ?: ""
+        val segments = uri.pathSegments
+        val firstSeg = segments.firstOrNull()?.lowercase() ?: ""
+
+        if (host.contains("youtube.com")) {
+            if (segments.isEmpty()) return true
+            if (firstSeg in setOf("feed", "results", "channel", "c", "user", "gaming", "account", "reporthistory")) {
+                return true
+            }
+        }
+        if (!host.contains("youtube.com") && host != "youtu.be" && !host.contains("spotify.com") && !host.contains("facebook.com") && host != "fb.watch") {
+            return true
+        }
+        return false
+    }
+
+    private fun extractActionableMediaKey(uri: Uri): String? {
+        val host = uri.host?.lowercase() ?: return null
+        val segments = uri.pathSegments
+        val firstSeg = segments.firstOrNull()?.lowercase() ?: ""
 
         if (host.contains("youtube.com") || host == "youtu.be") {
-            if (host == "youtu.be" && firstSeg.isNotBlank()) return true
-            if (firstSeg in setOf("watch", "shorts", "live", "playlist", "embed", "v")) {
-                return true
+            if (host == "youtu.be") {
+                val id = firstSeg.takeIf { it.length >= 6 } ?: return null
+                return "yt_shortlink:$id"
             }
-            if (!uri.getQueryParameter("v").isNullOrBlank() || !uri.getQueryParameter("list").isNullOrBlank()) {
-                return true
+
+            if (firstSeg == "watch") {
+                val videoId = uri.getQueryParameter("v")?.takeIf { it.length >= 6 }
+                val listId = uri.getQueryParameter("list")?.takeIf { it.length >= 6 }
+                val keyId = videoId ?: listId ?: return null
+                return "yt_watch:$host:$keyId"
             }
-            return false
+
+            if (firstSeg == "shorts" || firstSeg == "live" || firstSeg == "embed" || firstSeg == "v") {
+                val videoId = segments.getOrNull(1)?.takeIf { it.length >= 6 } ?: return null
+                return "yt_$firstSeg:$videoId"
+            }
+
+            if (firstSeg == "playlist") {
+                val listId = uri.getQueryParameter("list")?.takeIf { it.length >= 6 } ?: return null
+                return "yt_playlist:$listId"
+            }
+
+            return null
         }
 
         if (host.contains("spotify.com") || host == "spotify.link" || host == "spoti.fi") {
-            return firstSeg in setOf("track", "album", "playlist", "artist", "episode", "show") ||
-                host == "spotify.link" || host == "spoti.fi"
+            if (host == "spotify.link" || host == "spoti.fi") {
+                val code = firstSeg.takeIf { it.length >= 4 } ?: return null
+                return "spotify_short:$code"
+            }
+            if (firstSeg in setOf("track", "album", "playlist", "artist", "episode", "show")) {
+                val id = segments.getOrNull(1)?.takeIf { it.length >= 6 } ?: return null
+                return "spotify_$firstSeg:$id"
+            }
+            return null
         }
 
         if (host.contains("facebook.com") || host == "fb.watch") {
-            return host == "fb.watch" || path.contains("/watch") || path.contains("/videos/") || path.contains("/reel/")
+            if (host == "fb.watch") {
+                val id = firstSeg.takeIf { it.length >= 4 } ?: return null
+                return "fb_watch:$id"
+            }
+            if (firstSeg == "watch" || firstSeg == "reel" || segments.contains("videos")) {
+                val id = uri.getQueryParameter("v") ?: segments.lastOrNull()?.takeIf { it.length >= 5 } ?: return null
+                return "fb_video:$id"
+            }
+            return null
         }
 
         if (
@@ -920,14 +1026,17 @@ class BrowserUrlInterceptorService : AccessibilityService() {
             host.contains("twitter.com") ||
             host.contains("reddit.com")
         ) {
-            return uri.pathSegments.size >= 2 || host == "vm.tiktok.com" || host == "vt.tiktok.com"
+            if (segments.size >= 2) {
+                val lastSeg = segments.lastOrNull()?.takeIf { it.length >= 4 } ?: return null
+                return "social:$host:$lastSeg"
+            }
         }
 
-        return false
+        return null
     }
 
     companion object {
-        private const val COOLDOWN_MS = 2800L
+        private const val MIN_TRANSITION_GAP_MS = 900L
 
         private val KNOWN_URL_BAR_ID_SUFFIXES = listOf(
             "url_bar",
@@ -1179,10 +1288,10 @@ class RouterActivity : Activity() {
         const val KEY_WALLPAPER_STYLE = "wallpaper_style"
         const val KEY_FALLBACK_BROWSER_PACKAGE = "fallback_browser_package"
         const val KEY_IN_BROWSER_INTERCEPT_ENABLED = "in_browser_intercept_enabled"
-        const val KEY_IN_BROWSER_AUTO_BACK = "in_browser_auto_back"
         const val KEY_LAST_DISPATCHED_URL = "last_dispatched_url"
         const val KEY_LAST_VIDEO_ID = "last_video_id"
         const val KEY_DISPATCH_COUNT = "dispatch_count"
+        const val DEFAULT_SAMPLE_YOUTUBE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
         fun prefKeyRouteEnabled(route: ServiceRoute): String = "route_enabled_\${route.id}"
         fun prefKeyRoutePackage(route: ServiceRoute): String =
@@ -1200,6 +1309,10 @@ class RouterActivity : Activity() {
 
             val translated = analyzeAndTranslateUri(rawUri)
             val service = translated.service ?: return false
+
+            if (translated.extractedId.isNullOrBlank()) {
+                return false
+            }
 
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val isRouteEnabled = prefs.getBoolean(prefKeyRouteEnabled(service), service.defaultEnabled)
@@ -1229,7 +1342,7 @@ class RouterActivity : Activity() {
             if (launched) {
                 prefs.edit()
                     .putString(KEY_LAST_DISPATCHED_URL, translated.normalizedHttpsUrl)
-                    .putString(KEY_LAST_VIDEO_ID, translated.extractedId ?: service.title)
+                    .putString(KEY_LAST_VIDEO_ID, translated.extractedId)
                     .putInt(KEY_DISPATCH_COUNT, prefs.getInt(KEY_DISPATCH_COUNT, 0) + 1)
                     .apply()
             }
@@ -1334,7 +1447,22 @@ class RouterActivity : Activity() {
                         videoId = workingUri.getQueryParameter("v")
                     }
                 }
+                val playlistId = workingUri.getQueryParameter("list")
                 val timestamp = workingUri.getQueryParameter("t") ?: workingUri.getQueryParameter("start")
+
+                val canonicalYoutubeUrl = when {
+                    subType == "SHORTS" && !videoId.isNullOrBlank() ->
+                        "https://www.youtube.com/shorts/$videoId"
+                    !videoId.isNullOrBlank() -> {
+                        val base = "https://www.youtube.com/watch?v=$videoId"
+                        val withList = if (!playlistId.isNullOrBlank()) "$base&list=$playlistId" else base
+                        if (!timestamp.isNullOrBlank()) "$withList&t=$timestamp" else withList
+                    }
+                    !playlistId.isNullOrBlank() ->
+                        "https://www.youtube.com/playlist?list=$playlistId"
+                    else -> httpsString.replaceFirst("://m.youtube.com", "://www.youtube.com")
+                }
+
                 val vndUri = if (!videoId.isNullOrBlank()) {
                     val base = "vnd.youtube:$videoId"
                     Uri.parse(if (!timestamp.isNullOrBlank()) "$base?t=$timestamp" else base)
@@ -1343,9 +1471,9 @@ class RouterActivity : Activity() {
                 return TranslatedLinkResult(
                     service = ServiceRoute.YOUTUBE_VIDEO,
                     originalUrl = rawUri.toString(),
-                    normalizedHttpsUrl = httpsString,
+                    normalizedHttpsUrl = canonicalYoutubeUrl,
                     nativeSchemeUri = vndUri,
-                    extractedId = videoId ?: workingUri.getQueryParameter("list"),
+                    extractedId = videoId ?: playlistId,
                     linkSubType = subType
                 )
             }
@@ -1363,7 +1491,7 @@ class RouterActivity : Activity() {
                     originalUrl = rawUri.toString(),
                     normalizedHttpsUrl = httpsString,
                     nativeSchemeUri = spotifyNativeUri,
-                    extractedId = resourceId,
+                    extractedId = resourceId ?: firstSegment.takeIf { it.isNotBlank() },
                     linkSubType = resourceType?.uppercase() ?: "SPOTIFY_LINK"
                 )
             }
@@ -1460,7 +1588,6 @@ class RouterActivity : Activity() {
                 val forwardIntent = Intent(Intent.ACTION_VIEW, uri).apply {
                     setPackage(targetPackage)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 try {
                     context.startActivity(forwardIntent)
@@ -1783,14 +1910,8 @@ fun DispatcherMainScreen() {
         )
     }
 
-    var inBrowserAutoBack by remember {
-        mutableStateOf(
-            prefs.getBoolean(RouterActivity.KEY_IN_BROWSER_AUTO_BACK, true)
-        )
-    }
-
     var testUrl by remember {
-        mutableStateOf("")
+        mutableStateOf(RouterActivity.DEFAULT_SAMPLE_YOUTUBE_URL)
     }
 
     var dispatchCount by remember {
@@ -1884,7 +2005,7 @@ fun DispatcherMainScreen() {
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Bắt link cả ngoài hệ thống lẫn NGAY TRONG TRÌNH DUYỆT",
+                                    text = "Đầy đủ Đường liên kết mặc định & Bắt link TRONG Trình duyệt",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1905,11 +2026,41 @@ fun DispatcherMainScreen() {
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // CARD ĐẶC BIỆT: BẮT LINK NGAY BÊN TRONG TRÌNH DUYỆT (CHROME / BRAVE / FIREFOX / SAMSUNG)
+                // CARD 1: CẤP QUYỀN MỞ THEO MẶC ĐỊNH (ĐẦY ĐỦ 25+ ĐƯỜNG LINK MẶC ĐỊNH)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = Color(0xD90E2229)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "1. Bật Các Đường Liên Kết Mặc Định (Open by default)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Đã khai báo đầy đủ 25+ tên miền mặc định (youtube.com, m.youtube.com, youtu.be, music.youtube.com, open.spotify.com, fb.watch, tiktok.com...) trực tiếp trong RouterActivity để mục '+ Thêm đường liên kết' trong Cài đặt luôn hiển thị đầy đủ:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(
+                            onClick = { openSystemDefaultLinksSettings(context) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Mở 'Mở theo mặc định' & Chọn tất cả đường liên kết")
+                        }
+                    }
+                }
+
+                // CARD 2: BẮT LINK NGAY BÊN TRONG TRÌNH DUYỆT (ĐÃ SỬA LỖI VĂNG CHROME)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xBF111827)
                     )
                 ) {
                     Column(
@@ -1923,15 +2074,15 @@ fun DispatcherMainScreen() {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Bắt link YouTube / Nhạc ngay TRONG Trình duyệt",
+                                    text = "2. Bắt link YouTube / Nhạc ngay TRONG Trình duyệt",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = if (inBrowserAccessibilityActive) {
-                                        "ĐANG HOẠT ĐỘNG: Khi bạn đang lướt Chrome / Brave / Firefox mà nhấn vào link YouTube, ứng dụng sẽ tự động bóc link trên thanh địa chỉ và mở thẳng YouTube Mod!"
+                                        "ĐANG HOẠT ĐỘNG: Đã sửa triệt để lỗi tự bấm Back văng ngược về Chrome. Khi bấm vào video/Shorts trong trình duyệt, ứng dụng sẽ mở thẳng YouTube Morphe và giữ nguyên màn hình phát!"
                                     } else {
-                                        "CHƯA BẬT QUYỀN TRỢ NĂNG: Hãy bật mục này để khi bạn đang ở sẵn trong trình duyệt mà bấm vào link YouTube thì nó vẫn tự nhảy sang YouTube Mod."
+                                        "CHƯA BẬT TRỢ NĂNG: Bật mục này để khi bạn đang ở trong Chrome / Brave / Firefox mà bấm vào video YouTube thì nó tự nhảy sang YouTube Mod."
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (inBrowserAccessibilityActive) {
@@ -1953,27 +2104,6 @@ fun DispatcherMainScreen() {
                             )
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Tự động bấm Back trên trình duyệt sau khi chuyển sang App Mod",
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Switch(
-                                checked = inBrowserAutoBack,
-                                onCheckedChange = { autoBack ->
-                                    inBrowserAutoBack = autoBack
-                                    prefs.edit()
-                                        .putBoolean(RouterActivity.KEY_IN_BROWSER_AUTO_BACK, autoBack)
-                                        .apply()
-                                }
-                            )
-                        }
-
                         Button(
                             onClick = { openAccessibilitySettings(context) },
                             modifier = Modifier.fillMaxWidth()
@@ -1989,7 +2119,7 @@ fun DispatcherMainScreen() {
                     }
                 }
 
-                // CARD 1: TỰ ĐỘNG PHÁT HIỆN & CHỌN TRÌNH DUYỆT CHO CÁC LINK CÒN LẠI
+                // CARD 3: TỰ ĐỘNG PHÁT HIỆN & CHỌN TRÌNH DUYỆT CHO CÁC LINK CÒN LẠI
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -2012,7 +2142,7 @@ fun DispatcherMainScreen() {
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = "Khi mở link không thuộc YouTube, YT Music, Spotify, Facebook, MXH, ứng dụng sẽ chuyển thẳng sang trình duyệt bạn chọn dưới đây (Tự động phát hiện từ thiết bị):",
+                                    text = "Tự động phát hiện các trình duyệt đang cài trên máy để mở các liên kết ngoài danh sách:",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -2076,15 +2206,6 @@ fun DispatcherMainScreen() {
                                     )
                                 }
                             }
-
-                            val activeBrowserInfo = detectedBrowsers.find { it.packageName == selectedBrowserPkg }
-                                ?: detectedBrowsers.first()
-                            Text(
-                                text = "Đang chọn: \${activeBrowserInfo.appName} (\${activeBrowserInfo.packageName}) · Đã phát hiện \${detectedBrowsers.size} trình duyệt trên máy",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.primary
-                            )
                         }
                     }
                 }
@@ -2162,9 +2283,9 @@ fun DispatcherMainScreen() {
                                             !isEnabled && currentPkg.isNotBlank() && !isInstalled ->
                                                 "Đã tự động tắt luồng (Chưa cài $currentPkg -> Mở thẳng bằng Trình duyệt đã chọn)"
                                             isEnabled ->
-                                                "Đang bật đón bắt liên kết (Cả ngoài hệ thống & trong Trình duyệt)"
+                                                "Đang bật đón bắt liên kết"
                                             else ->
-                                                "Đã tắt (ComponentName đã vô hiệu hóa -> Mở qua Trình duyệt đã chọn)"
+                                                "Đã tắt (Mở qua Trình duyệt đã chọn)"
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = if (isEnabled) {
@@ -2188,12 +2309,6 @@ fun DispatcherMainScreen() {
                                     }
                                 )
                             }
-
-                            Text(
-                                text = "Chọn nhanh Package đích hoặc để trống để mở bằng Trình duyệt đã chọn:",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
 
                             FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
@@ -2231,7 +2346,6 @@ fun DispatcherMainScreen() {
                                     }
                                 },
                                 label = { Text("Package Name đích (Để trống = Mở bằng Trình duyệt)") },
-                                placeholder = { Text("Để trống để mở qua trình duyệt đã chọn") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -2239,7 +2353,7 @@ fun DispatcherMainScreen() {
                     }
                 }
 
-                // CARD CẤP QUYỀN MỞ THEO MẶC ĐỊNH / DEFAULT BROWSER
+                // CARD KIỂM TRA NHANH VỚI CÁC ĐƯỜNG LINK MẶC ĐỊNH CÓ SẴN
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -2251,60 +2365,48 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Đặt làm Ứng dụng mở đường dẫn tự động (Default Browser)",
+                            text = "Kiểm tra nhanh Chuyển tiếp (Có sẵn Đường Link Mặc Định)",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Button(
-                            onClick = { openDefaultAppsSettings(context) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("1. Chọn làm 'Ứng dụng Trình duyệt mặc định' (Default Apps)")
-                        }
-                        OutlinedButton(
-                            onClick = { openSystemDefaultLinksSettings(context) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("2. Mở màn hình 'Mở theo mặc định' (Open by default)")
-                        }
-                    }
-                }
 
-                // CARD KIỂM TRA NHANH INTENT
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xBF111827)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "Kiểm tra nhanh Chuyển tiếp",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                "YouTube Video" to "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                                "YouTube Shorts" to "https://m.youtube.com/shorts/5qap5aO4i9A",
+                                "YouTube Music" to "https://music.youtube.com/watch?v=dQw4w9WgXcQ",
+                                "Spotify" to "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"
+                            ).forEach { (label, sampleLink) ->
+                                FilterChip(
+                                    selected = testUrl == sampleLink,
+                                    onClick = { testUrl = sampleLink },
+                                    label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
 
                         OutlinedTextField(
                             value = testUrl,
                             onValueChange = { testUrl = it },
-                            label = { Text("Nhập link cần thử nghiệm (Để trống mặc định)") },
+                            label = { Text("Đường link kiểm tra mặc định") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
 
                         Button(
                             onClick = {
-                                val trimmed = testUrl.trim()
-                                if (trimmed.isNotEmpty()) {
-                                    val testIntent = Intent(context, RouterActivity::class.java).apply {
-                                        action = Intent.ACTION_VIEW
-                                        data = Uri.parse(trimmed)
-                                    }
-                                    context.startActivity(testIntent)
+                                val trimmed = testUrl.trim().ifEmpty {
+                                    RouterActivity.DEFAULT_SAMPLE_YOUTUBE_URL
                                 }
+                                testUrl = trimmed
+                                val testIntent = Intent(context, RouterActivity::class.java).apply {
+                                    action = Intent.ACTION_VIEW
+                                    data = Uri.parse(trimmed)
+                                }
+                                context.startActivity(testIntent)
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -2406,14 +2508,6 @@ private fun openSystemDefaultLinksSettings(context: Context) {
             ).show()
         }
     }
-}
-
-private fun openDefaultAppsSettings(context: Context) {
-    try {
-        context.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
-    } catch (_: Exception) {
-        openSystemDefaultLinksSettings(context)
-    }
 }`;
 
   const accessibilityBrowserInterceptorXml = `<?xml version="1.0" encoding="utf-8"?>
@@ -2447,8 +2541,8 @@ android {
         applicationId = "${config.applicationId}"
         minSdk = ${config.minSdk}
         targetSdk = ${config.targetSdk}
-        versionCode = 4
-        versionName = "4.0.0"
+        versionCode = 5
+        versionName = "5.0.0"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -2599,14 +2693,12 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v4.0.\${{ github.run_number }}
+          tag_name: v5.0.\${{ github.run_number }}
           name: "${config.appName} APK #\${{ github.run_number }}"
           body: |
-            ### Bản dựng tự động ${config.appName} (Bắt link cả ngoài hệ thống & NGAY TRONG TRÌNH DUYỆT)
-            - **In-Browser Interceptor (\`BrowserUrlInterceptorService\`):** Tự động phát hiện khi bấm link YouTube / YT Music / Spotify ngay bên trong Chrome, Brave, Firefox, Samsung Internet... và phóng thẳng sang ứng dụng Mod.
-            - **YouTube Video:** \`${ytVideo.targetPackage || 'Web Browser'}\`
-            - **YouTube Music:** \`${ytMusic.targetPackage || 'Web Browser'}\`
-            - **Spotify:** \`${spotify.targetPackage || 'Web Browser'}\`
+            ### Bản dựng tự động ${config.appName} (Đầy đủ Đường liên kết mặc định & Sửa lỗi văng Chrome)
+            - **AndroidManifest.xml:** Khai báo tường minh 25+ đường liên kết mặc định trong \`RouterActivity\` để mục **Mở theo mặc định -> Thêm đường liên kết** luôn hiện đầy đủ.
+            - **BrowserUrlInterceptorService.kt:** Đã xóa lệnh tự bấm Back sau 120ms (nguyên nhân làm YouTube Morphe bị đóng ngược về Chrome) và khóa chống lặp tuyệt đối theo ID video.
           files: app/build/outputs/apk/debug/app-debug.apk
           draft: false
           prerelease: false
@@ -2682,22 +2774,22 @@ jobs:
 
   return [
     {
-      path: `app/src/main/java/${pkgPath}/BrowserUrlInterceptorService.kt`,
-      title: 'BrowserUrlInterceptorService.kt (Bắt link TRONG Trình duyệt)',
-      language: 'kotlin',
-      category: 'core',
-      description:
-        'AccessibilityService theo dõi thanh địa chỉ của Chrome, Brave, Firefox, Samsung Internet... Ngay khi bạn nhấn vào link YouTube/Nhạc bên trong trình duyệt, nó lập tức bắn sang ứng dụng Mod và tự bấm Back đóng tab thừa.',
-      content: browserUrlInterceptorServiceKt,
-    },
-    {
       path: 'app/src/main/AndroidManifest.xml',
-      title: 'AndroidManifest.xml',
+      title: 'AndroidManifest.xml (Đầy đủ 25+ Đường link mặc định)',
       language: 'xml',
       category: 'core',
       description:
-        'Khai báo BrowserUrlInterceptorService, RouterActivity (Theme.NoDisplay), ACTION_PROCESS_TEXT (menu bôi đen trong trình duyệt), custom scheme vnd.youtube/spotify/fb và bộ lọc tự động phát hiện trình duyệt.',
+        'Đã xóa bộ lọc http/https rỗng host (nguyên nhân làm trống danh sách Mở theo mặc định trên Android 12+) và khai báo tường minh toàn bộ 25+ đường link mặc định ngay trong RouterActivity.',
       content: manifestXml,
+    },
+    {
+      path: `app/src/main/java/${pkgPath}/BrowserUrlInterceptorService.kt`,
+      title: 'BrowserUrlInterceptorService.kt (Đã sửa lỗi văng Chrome)',
+      language: 'kotlin',
+      category: 'core',
+      description:
+        'Đã xóa lệnh performGlobalAction(GLOBAL_ACTION_BACK) sau 120ms (nguyên nhân bấm Back nhầm vào YouTube Morphe làm văng ngược về Chrome) và chống lặp tuyệt đối theo ID video.',
+      content: browserUrlInterceptorServiceKt,
     },
     {
       path: `app/src/main/java/${pkgPath}/RouterActivity.kt`,
@@ -2705,7 +2797,7 @@ jobs:
       language: 'kotlin',
       category: 'core',
       description:
-        'Xử lý điều hướng tức thì (Theme.NoDisplay), bóc tách link chuyển hướng google.com/url?q=..., hỗ trợ dispatchUrlFromBrowserService() và tự động phát hiện trình duyệt.',
+        'Tự động chuẩn hóa m.youtube.com sang www.youtube.com để YouTube Morphe mở thẳng video/Shorts và có sẵn hằng số DEFAULT_SAMPLE_YOUTUBE_URL.',
       content: routerActivityKt,
     },
     {
@@ -2714,7 +2806,7 @@ jobs:
       language: 'kotlin',
       category: 'core',
       description:
-        'Giao diện Compose Material 3 tích hợp công tắc bật "Bắt link ngay TRONG Trình duyệt", chọn Trình duyệt tự động phát hiện và quản lý 5 luồng ứng dụng.',
+        'Giao diện cài đặt có điền sẵn Đường link mặc định để kiểm tra ngay, nút mở "Mở theo mặc định" hiển thị đủ 25+ tên miền và công tắc Bắt link trong trình duyệt.',
       content: mainActivityKt,
     },
     {
@@ -2723,7 +2815,7 @@ jobs:
       language: 'xml',
       category: 'core',
       description:
-        'Cấu hình AccessibilityService cho phép đọc ID thanh địa chỉ (flagReportViewIds) trên các trình duyệt với độ trễ cực thấp (80ms).',
+        'Cấu hình AccessibilityService đọc thanh địa chỉ trình duyệt.',
       content: accessibilityBrowserInterceptorXml,
     },
     {
@@ -2732,7 +2824,7 @@ jobs:
       language: 'xml',
       category: 'core',
       description:
-        'Khai báo tên ứng dụng và mô tả hiển thị trong màn hình Cài đặt Hỗ trợ tiếp cận (Accessibility) của Android.',
+        'Khai báo tên ứng dụng và mô tả hiển thị trong Cài đặt Hỗ trợ tiếp cận.',
       content: stringsXml,
     },
     {
@@ -2741,7 +2833,7 @@ jobs:
       language: 'xml',
       category: 'core',
       description:
-        'Vector Drawable biểu tượng chính thức của ứng dụng Link Dispatcher (Nút Play kết hợp mũi tên chuyển hướng lục giác).',
+        'Vector Drawable biểu tượng chính thức của ứng dụng Link Dispatcher.',
       content: icLauncherFgXml,
     },
     {
@@ -2749,7 +2841,7 @@ jobs:
       title: 'ic_launcher_background.xml (Logo Background)',
       language: 'xml',
       category: 'core',
-      description: 'Vector Drawable nền chuyển sắc (Gradient) cho Adaptive Icon của ứng dụng.',
+      description: 'Vector Drawable nền chuyển sắc cho Adaptive Icon.',
       content: icLauncherBgXml,
     },
     {
@@ -2757,7 +2849,7 @@ jobs:
       title: 'ic_launcher.xml (Adaptive Icon)',
       language: 'xml',
       category: 'core',
-      description: 'Cấu hình Adaptive Launcher Icon chuẩn cho Android 8.0+ (API 26+).',
+      description: 'Cấu hình Adaptive Launcher Icon chuẩn cho Android 8.0+.',
       content: icLauncherXml,
     },
     {
@@ -2766,7 +2858,7 @@ jobs:
       language: 'gradle',
       category: 'gradle',
       description:
-        'Cấu hình Module-level Gradle: compileSdk 34, targetSdk 34, Java 17, Compose Compiler plugin và các thư viện Compose Material 3.',
+        'Cấu hình Module-level Gradle: compileSdk 34, targetSdk 34, Java 17, Compose Material 3.',
       content: appBuildGradleKts,
     },
     {
@@ -2775,7 +2867,7 @@ jobs:
       language: 'gradle',
       category: 'gradle',
       description:
-        'Cấu hình Project-level Gradle: khai báo plugin com.android.application (8.5.2), org.jetbrains.kotlin.android (2.0.20) và org.jetbrains.kotlin.plugin.compose (2.0.20).',
+        'Cấu hình Project-level Gradle (AGP 8.5.2, Kotlin 2.0.20).',
       content: rootBuildGradleKts,
     },
     {
@@ -2784,7 +2876,7 @@ jobs:
       language: 'gradle',
       category: 'gradle',
       description:
-        'Khai báo kho lưu trữ google(), mavenCentral(), gradlePluginPortal() và tên dự án gốc LinkDispatcher.',
+        'Khai báo repositories và tên dự án gốc LinkDispatcher.',
       content: settingsGradleKts,
     },
     {
@@ -2792,14 +2884,14 @@ jobs:
       title: 'gradle-wrapper.properties',
       language: 'properties',
       category: 'gradle',
-      description: 'Cấu hình phiên bản Gradle 8.7 tương thích chuẩn với AGP 8.5.2 và JDK 17.',
+      description: 'Cấu hình phiên bản Gradle 8.7.',
       content: gradleWrapperProperties,
     },
     {
       path: 'gradle.properties',
       title: 'gradle.properties',
       language: 'properties',
-      description: 'Khai báo thuộc tính JVM Args, AndroidX và Non-Transitive R Class.',
+      description: 'Khai báo thuộc tính JVM Args và AndroidX.',
       category: 'gradle',
       content: gradleProperties,
     },
@@ -2809,7 +2901,7 @@ jobs:
       language: 'yaml',
       category: 'ci',
       description:
-        'GitHub Actions Workflow tự động cài JDK 17, khởi tạo Gradle Wrapper, biên dịch ./gradlew assembleDebug, đẩy Artifact và tạo GitHub Release chứa file app-debug.apk.',
+        'GitHub Actions Workflow tự động build APK và tạo Release.',
       content: githubWorkflowYml,
     },
   ];
