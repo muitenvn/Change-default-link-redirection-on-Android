@@ -4,35 +4,31 @@
 
     <!--
       Chính sách Package Visibility của Android 11+ (API 30+):
-      - Khai báo <intent> với ACTION_VIEW + CATEGORY_BROWSABLE (http & https) giúp
-        PackageManager.queryIntentActivities() TỰ ĐỘNG PHÁT HIỆN 100% trình duyệt
-        đang cài trên máy người dùng mà không cần định sẵn tên gói trình duyệt!
+      - Khai báo thẻ <intent> với ACTION_VIEW + CATEGORY_BROWSABLE (scheme http/https)
+        để hệ thống TỰ ĐỘNG PHÁT HIỆN toàn bộ các trình duyệt Web đang cài trên máy
+        (Chrome, Brave, Firefox, Samsung Internet, Edge, Opera, Vivaldi, Cốc Cốc,...)
+        mà không cần định sẵn danh sách trình duyệt cứng.
     -->
     <queries>
-        <!-- YouTube Video -->
         <package android:name="app.morphe.android.youtube" />
         <package android:name="app.revanced.android.youtube" />
         <package android:name="app.rvx.android.youtube" />
         <package android:name="com.google.android.youtube" />
         <package android:name="org.schabi.newpipe" />
 
-        <!-- YouTube Music -->
         <package android:name="app.rvx.android.apps.youtube.music" />
         <package android:name="app.revanced.android.apps.youtube.music" />
         <package android:name="app.morphe.android.apps.youtube.music" />
         <package android:name="com.google.android.apps.youtube.music" />
 
-        <!-- Spotify -->
         <package android:name="com.spotify.music" />
         <package android:name="com.spotify.lite" />
         <package android:name="oss.krtirtho.spotube" />
 
-        <!-- Facebook -->
         <package android:name="com.facebook.katana" />
         <package android:name="com.facebook.lite" />
         <package android:name="it.rignanese.leo.slimfacebook" />
 
-        <!-- Mạng xã hội (TikTok, Instagram, Threads, X/Twitter, Reddit) -->
         <package android:name="com.ss.android.ugc.trill" />
         <package android:name="com.zhiliaoapp.musically" />
         <package android:name="com.instagram.android" />
@@ -41,10 +37,7 @@
         <package android:name="com.twitter.android" />
         <package android:name="com.reddit.frontpage" />
 
-        <!--
-          Bộ truy vấn động giúp hệ thống TỰ ĐỘNG QUÉT & PHÁT HIỆN mọi trình duyệt Web
-          đang cài đặt trên thiết bị (Chrome, Cốc Cốc, Brave, Samsung Internet, Firefox, Via, Edge...)
-        -->
+        <!-- Tự động phát hiện mọi Trình duyệt Web cài trên thiết bị -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
@@ -73,7 +66,7 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Link Dispatcher"
+        android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         tools:targetApi="34">
@@ -82,7 +75,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="Link Dispatcher">
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -90,8 +83,8 @@
         </activity>
 
         <!--
-          2. RouterActivity: Dùng Theme.NoDisplay (như phiên bản đầu) để chuyển tiếp
-          tức thì không tạo cửa sổ giao diện, không giật khung hình và tự đóng ngay.
+          2. RouterActivity: Dùng Theme.NoDisplay để chuyển tiếp tức thì
+          không tạo cửa sổ giao diện, không giật khung hình và tự đóng ngay.
         -->
         <activity
             android:name=".RouterActivity"
@@ -109,15 +102,52 @@
                 <data android:scheme="https" />
             </intent-filter>
 
-            <!-- Đón bắt thao tác Share link (ACTION_SEND) từ Zalo, Messenger, Trình duyệt -->
+            <!-- Đón bắt thao tác Share link (ACTION_SEND) từ Trình duyệt, Zalo, Messenger -->
             <intent-filter android:priority="999">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+
+            <!--
+              Nút "Mở bằng Link Dispatcher" ngay trên thanh menu nổi khi bôi đen / nhấn giữ
+              link hoặc văn bản bên trong bất kỳ Trình duyệt nào (ACTION_PROCESS_TEXT)
+            -->
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
-        <!-- ALIAS 1: YOUTUBE VIDEO (youtube.com, m.youtube.com, www.youtube.com, youtu.be) -->
+        <!--
+          3. BrowserUrlInterceptorService:
+          Dịch vụ bắt link NGAY BÊN TRONG TRÌNH DUYỆT (Chrome, Brave, Firefox, Samsung Internet...).
+          Khi bạn đã ở trong trình duyệt và nhấn vào link YouTube / YT Music / Spotify,
+          dịch vụ đọc thanh địa chỉ trình duyệt và phóng thẳng sang ứng dụng Mod tức thì!
+        -->
+        <service
+            android:name=".BrowserUrlInterceptorService"
+            android:exported="true"
+            android:label="@string/accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_browser_interceptor" />
+        </service>
+
+        <!--
+          ======================================================================
+          CÁC ACTIVITY-ALIAS ĐỘC LẬP CHO TỪNG LUỒNG DỊCH VỤ:
+          Hỗ trợ cả http/https (autoVerify) LẪN custom scheme (vnd.youtube, youtube,
+          spotify, fb) khi bấm nút "Mở ứng dụng" ngay từ bên trong trang web trình duyệt.
+          ======================================================================
+        -->
+
+        <!-- ALIAS 1: YOUTUBE VIDEO -->
         <activity-alias
             android:name=".RouteYoutubeVideoAlias"
             android:enabled="true"
@@ -139,9 +169,18 @@
                 <data android:host="youtu.be" />
                 <data android:pathPattern=".*" />
             </intent-filter>
+
+            <!-- Đón bắt khi trang web trong trình duyệt gọi scheme vnd.youtube:// hoặc youtube:// -->
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="vnd.youtube" />
+                <data android:scheme="youtube" />
+            </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 2: YOUTUBE MUSIC (music.youtube.com) -->
+        <!-- ALIAS 2: YOUTUBE MUSIC -->
         <activity-alias
             android:name=".RouteYoutubeMusicAlias"
             android:enabled="true"
@@ -159,9 +198,16 @@
                 <data android:host="music.youtube.com" />
                 <data android:pathPattern=".*" />
             </intent-filter>
+
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="vnd.youtube.music" />
+            </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 3: SPOTIFY (open.spotify.com, spotify.link, spoti.fi) -->
+        <!-- ALIAS 3: SPOTIFY -->
         <activity-alias
             android:name=".RouteSpotifyAlias"
             android:enabled="true"
@@ -181,9 +227,16 @@
                 <data android:host="spoti.fi" />
                 <data android:pathPattern=".*" />
             </intent-filter>
+
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="spotify" />
+            </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 4: FACEBOOK (facebook.com, m.facebook.com, fb.watch, fb.com) -->
+        <!-- ALIAS 4: FACEBOOK -->
         <activity-alias
             android:name=".RouteFacebookAlias"
             android:enabled="true"
@@ -205,9 +258,16 @@
                 <data android:host="fb.com" />
                 <data android:pathPattern=".*" />
             </intent-filter>
+
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="fb" />
+            </intent-filter>
         </activity-alias>
 
-        <!-- ALIAS 5: MẠNG XÃ HỘI KHÁC (TikTok, Instagram, Threads, X/Twitter, Reddit) -->
+        <!-- ALIAS 5: MẠNG XÃ HỘI KHÁC -->
         <activity-alias
             android:name=".RouteSocialAlias"
             android:enabled="true"

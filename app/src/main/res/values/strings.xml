@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Link Dispatcher</string>
+    <string name="accessibility_service_label">Link Dispatcher - Bắt link trong Trình duyệt</string>
+    <string name="accessibility_service_description">Tự động phát hiện khi bạn bấm vào link YouTube, YouTube Music, Spotify ngay bên trong trình duyệt (Chrome, Brave, Firefox, Samsung Internet...) và chuyển thẳng sang ứng dụng Mod tương ứng.</string>
+</resources>

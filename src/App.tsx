@@ -10,6 +10,7 @@ import {
   Palette,
   Power,
   RefreshCw,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   DetectedBrowserDeviceItem,
@@ -71,28 +72,24 @@ const WALLPAPER_THEMES: Array<{
 
 const SAMPLE_LINKS = [
   {
-    label: 'Link Web bất kỳ (Ngoài danh sách)',
-    url: 'https://vnexpress.net/khoa-hoc-cong-nghe',
-  },
-  {
-    label: 'YouTube Music',
-    url: 'https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVMdQw4w9WgXcQ',
+    label: 'Google Search -> YouTube (Trong Trình duyệt)',
+    url: 'https://www.google.com/url?q=https://m.youtube.com/watch%3Fv%3DdQw4w9WgXcQ',
   },
   {
     label: 'YouTube Video / Shorts',
     url: 'https://m.youtube.com/shorts/5qap5aO4i9A',
   },
   {
+    label: 'YouTube Music',
+    url: 'https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVMdQw4w9WgXcQ',
+  },
+  {
     label: 'Spotify Track',
     url: 'https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT?si=abc123',
   },
   {
-    label: 'Facebook Watch',
-    url: 'https://fb.watch/v987654321/',
-  },
-  {
-    label: 'TikTok / Instagram',
-    url: 'https://www.instagram.com/reel/C8abc123xyz/',
+    label: 'Link Web bất kỳ (Ngoài danh sách)',
+    url: 'https://vnexpress.net/khoa-hoc-cong-nghe',
   },
 ];
 
@@ -212,11 +209,15 @@ export default function App() {
 
   const [activeRouteTab, setActiveRouteTab] = useState<ServiceRouteId>('youtube_video');
   const [selectedFilePath, setSelectedFilePath] = useState<string>(
-    'app/src/main/java/com/example/linkdispatcher/RouterActivity.kt'
+    'app/src/main/java/com/example/linkdispatcher/BrowserUrlInterceptorService.kt'
   );
   const [fileFilter, setFileFilter] = useState<'all' | 'core' | 'gradle' | 'ci'>('all');
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [isExportingZip, setIsExportingZip] = useState(false);
+
+  // Mô phỏng trạng thái BrowserUrlInterceptorService (Bắt link NGAY BÊN TRONG trình duyệt)
+  const [inBrowserInterceptorEnabled, setInBrowserInterceptorEnabled] = useState<boolean>(true);
+  const [inBrowserAutoBack, setInBrowserAutoBack] = useState<boolean>(true);
 
   // Mô phỏng danh sách trình duyệt được PackageManager.queryIntentActivities tự động phát hiện trên máy
   const [simDetectedBrowsers, setSimDetectedBrowsers] = useState<DetectedBrowserDeviceItem[]>([
@@ -233,9 +234,9 @@ export default function App() {
   const [simUrlInput, setSimUrlInput] = useState<string>('');
   const [simTargetPackageInstalled, setSimTargetPackageInstalled] = useState<boolean>(true);
   const [simPhoneScreen, setSimPhoneScreen] = useState<
-    'main_activity' | 'router_dispatch_result' | 'system_open_by_default'
-  >('main_activity');
-  const [simDispatchCount, setSimDispatchCount] = useState<number>(28);
+    'in_browser_demo' | 'main_activity' | 'router_dispatch_result'
+  >('in_browser_demo');
+  const [simDispatchCount, setSimDispatchCount] = useState<number>(32);
   const [simLastDispatchedToast, setSimLastDispatchedToast] = useState<string | null>(null);
 
   const projectFiles = useMemo(() => generateAndroidProjectFiles(config), [config]);
@@ -342,10 +343,10 @@ export default function App() {
       );
       zip.file(
         'README.md',
-        `# ${config.appName} (Android Native Link Dispatcher)\n\n` +
-          `- **Tự động phát hiện Trình duyệt trên thiết bị**: Dùng \`PackageManager.queryIntentActivities\` với \`CATEGORY_BROWSABLE\` (không định sẵn danh sách trình duyệt cứng) để phát hiện toàn bộ trình duyệt đang cài trên máy và cho phép người dùng chọn trình duyệt mở các liên kết Web còn lại.\n` +
-          `- **RouterActivity dùng \`Theme.NoDisplay\` & kế thừa \`android.app.Activity\`** kèm bộ lọc Default Browser (\`http\`/\`https\` \`BROWSABLE\`) để bắt liên kết mặc định mượt như phiên bản đầu.\n` +
-          `- **Không hiện bảng báo lỗi & Không tự mở app mặc định**: Nếu chưa cài đặt bản Mod, ứng dụng sẽ tự động tắt luồng / vô hiệu hóa \`ComponentName\` của luồng đó và mở thẳng qua trình duyệt đã chọn.\n`
+        `# ${config.appName} (Android Native Link Dispatcher v4.0)\n\n` +
+          `- **Bắt link NGAY BÊN TRONG Trình duyệt (\`BrowserUrlInterceptorService.kt\`)**: Giải quyết triệt để việc khi đã vào trình duyệt (Chrome, Brave, Firefox, Samsung Internet...) rồi nhấn vào link YouTube thì trình duyệt tự giữ lại trong tab web. Dịch vụ sẽ đọc thanh địa chỉ của trình duyệt, bắn thẳng sang YouTube Mod (\`app.morphe.android.youtube\`) và tự bấm Back đóng tab thừa.\n` +
+          `- **Tự động phát hiện Trình duyệt trên thiết bị**: Dùng \`PackageManager.queryIntentActivities\` với \`CATEGORY_BROWSABLE\` để phát hiện toàn bộ trình duyệt đang cài trên máy và mở các link Web thông thường.\n` +
+          `- **RouterActivity dùng \`Theme.NoDisplay\`**: Chuyển tiếp siêu mượt và tự tắt luồng nếu chưa cài bản Mod.\n`
       );
 
       const blob = await zip.generateAsync({ type: 'blob' });
@@ -362,53 +363,52 @@ export default function App() {
     }
   };
 
-  const triggerSimulateRouter = () => {
-    const effectiveUrl = simUrlInput.trim() || SAMPLE_LINKS[0].url;
-    if (!simUrlInput.trim()) {
-      setSimUrlInput(effectiveUrl);
-    }
-    const preview = parseYoutubeInputForPreview(effectiveUrl);
+  const triggerSimulateInBrowserClick = (clickedUrl: string) => {
+    setSimUrlInput(clickedUrl);
+    const preview = parseYoutubeInputForPreview(clickedUrl);
     setSimDispatchCount((prev) => prev + 1);
 
-    // Trường hợp 0: Liên kết Web ngoài danh sách 5 ứng dụng (ví dụ vnexpress.net, google.com)
     if (!preview.serviceId) {
       setSimPhoneScreen('router_dispatch_result');
       setSimLastDispatchedToast(
-        `[Link ngoài danh sách App] Đã tự động chuyển thẳng sang trình duyệt "${activeFallbackBrowser.appName}" (${activeFallbackBrowser.packageName})`
+        `[Trình duyệt ${activeFallbackBrowser.appName}] Đây là link Web thường -> Giữ nguyên mở trong ${activeFallbackBrowser.appName}`
       );
       return;
     }
 
     const route = config.routes[preview.serviceId];
 
-    // Trường hợp 1: Luồng đã tắt hoặc để trống Package (Mở bằng Trình duyệt đã chọn)
-    if (!route.enabled || !route.targetPackage) {
+    if (!inBrowserInterceptorEnabled) {
       setSimPhoneScreen('router_dispatch_result');
       setSimLastDispatchedToast(
-        `[${route.title}] Đã chuyển thẳng sang trình duyệt "${activeFallbackBrowser.appName}" (${activeFallbackBrowser.packageName})`
+        `[Chưa bật BrowserUrlInterceptorService] Trình duyệt ${activeFallbackBrowser.appName} sẽ giữ link lại trong tab web!`
       );
       return;
     }
 
-    // Trường hợp 2: Chưa cài bản Mod (ví dụ app.morphe.android.youtube)
-    if (!simTargetPackageInstalled) {
-      updateRoute(route.id, (r) => ({ ...r, enabled: false }));
+    if (!route.enabled || !route.targetPackage || !simTargetPackageInstalled) {
+      if (!simTargetPackageInstalled && route.targetPackage) {
+        updateRoute(route.id, (r) => ({ ...r, enabled: false }));
+      }
       setSimPhoneScreen('router_dispatch_result');
       setSimLastDispatchedToast(
-        `Chưa cài "${route.targetPackage}" -> Đã tự động tắt ComponentName(${route.aliasName}) & mở qua "${activeFallbackBrowser.appName}" (${activeFallbackBrowser.packageName})`
+        `[${route.title}] Luồng đang tắt hoặc chưa cài Mod -> Giữ nguyên trong trình duyệt ${activeFallbackBrowser.appName}`
       );
       return;
     }
 
-    // Trường hợp 3: Đã cài bản Mod -> Mở tức thì với Theme.NoDisplay
     setSimPhoneScreen('router_dispatch_result');
-    const targetUri =
-      config.preferNativeSchemeDefault && preview.nativeSchemeUri
-        ? preview.nativeSchemeUri
-        : preview.normalizedHttpsUrl || effectiveUrl;
     setSimLastDispatchedToast(
-      `[Theme.NoDisplay] Đã bắn Intent sang "${route.targetPackage}" (${targetUri}) & finish() trong 2ms`
+      `[BrowserUrlInterceptorService] Phát hiện thanh địa chỉ ${activeFallbackBrowser.appName} chuyển sang "${preview.host}" -> Bắn thẳng sang "${route.targetPackage}"${inBrowserAutoBack ? ' & tự bấm Back đóng tab web thừa!' : '!'}`
     );
+  };
+
+  const triggerSimulateRouter = () => {
+    const effectiveUrl = simUrlInput.trim() || SAMPLE_LINKS[0].url;
+    if (!simUrlInput.trim()) {
+      setSimUrlInput(effectiveUrl);
+    }
+    triggerSimulateInBrowserClick(effectiveUrl);
   };
 
   const activeRoute = config.routes[activeRouteTab];
@@ -430,22 +430,22 @@ export default function App() {
 
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
           <a
+            href="#in-browser-interceptor"
+            className="hover:text-white transition-colors whitespace-nowrap shrink-0"
+          >
+            Bắt Link Trong Trình Duyệt
+          </a>
+          <a
             href="#browser-discovery"
             className="hover:text-white transition-colors whitespace-nowrap shrink-0"
           >
-            Tự động Phát hiện Trình duyệt
+            Chọn Trình Duyệt
           </a>
           <a
             href="#multi-route-hub"
             className="hover:text-white transition-colors whitespace-nowrap shrink-0"
           >
-            Cấu hình Đa luồng
-          </a>
-          <a
-            href="#intent-simulator"
-            className="hover:text-white transition-colors whitespace-nowrap shrink-0"
-          >
-            Mô phỏng Mở Link
+            Đa Luồng Ứng Dụng
           </a>
           <a
             href="#source-workspace"
@@ -475,132 +475,144 @@ export default function App() {
               <div className="flex items-center gap-3">
                 <AppLauncherLogo className="w-12 h-12 border border-emerald-400/30" />
                 <div className="text-xs text-slate-300 flex flex-wrap items-center gap-2 font-mono">
-                  <span>Auto-Detect Installed Browsers</span>
+                  <span>In-Browser URL Bar Hijacker</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Auto-Detect Browsers</span>
                   <span aria-hidden="true">·</span>
                   <span>Theme.NoDisplay</span>
-                  <span aria-hidden="true">·</span>
-                  <span>Default Link Opener</span>
                 </div>
               </div>
               <h1
                 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight"
                 style={{ textWrap: 'balance' }}
               >
-                Link Dispatcher — Mở đường dẫn tự động &amp; Tự động phát hiện Trình duyệt trên máy
+                Bắt link YouTube ngay cả khi bạn ĐANG Ở BÊN TRONG Trình duyệt (Chrome, Brave, Firefox...)
               </h1>
               <p className="text-slate-200/90 text-base leading-relaxed max-w-2xl">
-                Khi đặt ứng dụng làm trình mở đường dẫn mặc định, mọi liên kết thuộc{' '}
-                <strong>YouTube, YouTube Music, Spotify, Facebook, MXH</strong> sẽ đi thẳng vào bản
-                Mod tương ứng. Nếu đường dẫn <strong>không nằm trong các ứng dụng trên</strong>, hệ
-                thống sẽ <strong>tự động chuyển sang Trình duyệt Web bạn chọn</strong> — được quét
-                trực tiếp từ thiết bị qua{' '}
+                Đúng như bạn nói: khi đã vào bên trong trình duyệt (như Chrome) rồi bấm vào kết quả
+                tìm kiếm YouTube, trình duyệt sẽ tự mở trang <code className="font-mono text-emerald-300">m.youtube.com</code> trong tab chứ không gọi Default Browser nữa. Để xử lý triệt để, dự án đã được trang bị thêm{' '}
                 <code className="text-emerald-300 font-mono text-sm">
-                  PackageManager.queryIntentActivities()
+                  BrowserUrlInterceptorService.kt
                 </code>{' '}
-                mà không hề định sẵn danh sách trình duyệt cứng.
+                — tự động canh thanh địa chỉ (URL Bar) của trình duyệt: hễ thấy trình duyệt vừa nhảy
+                vào link video YouTube / YT Music / Spotify là <strong>bắn thẳng sang YouTube Mod</strong> và{' '}
+                <strong>tự bấm Back 1 nhịp</strong> để đóng tab web thừa!
               </p>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-white/10">
               <div>
-                <div className="text-xs text-slate-400">Quét Trình duyệt</div>
+                <div className="text-xs text-slate-400">Khi đang ở trong Chrome</div>
                 <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">
-                  queryIntentActivities
+                  Đọc URL Bar &amp; Bắt ngay
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-400">Link ngoài danh sách</div>
+                <div className="text-xs text-slate-400">Đóng tab YouTube thừa</div>
                 <div className="text-sm font-bold text-white font-mono mt-0.5">
-                  Qua Trình duyệt đã chọn
+                  GLOBAL_ACTION_BACK
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-400">Chống lặp vô tận</div>
+                <div className="text-xs text-slate-400">Link Google Search</div>
                 <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">
-                  Loại trừ chính App
+                  Tự bóc tách /url?q=
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-400">Trình duyệt đang chọn</div>
-                <div className="text-sm font-bold text-white font-mono mt-0.5 truncate">
-                  {activeFallbackBrowser.appName}
+                <div className="text-xs text-slate-400">Menu bôi đen trong Web</div>
+                <div className="text-sm font-bold text-white font-mono mt-0.5">
+                  ACTION_PROCESS_TEXT
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Wallpaper & Project Settings */}
-          <div className="lg:col-span-5 bg-slate-950/75 backdrop-blur-md border border-white/15 rounded-xl p-5 flex flex-col justify-between space-y-4">
-            <div>
-              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                <Palette className="w-4 h-4 text-emerald-400" />
-                <span>Hình nền Ứng dụng &amp; Thông số Build</span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-1">
-                Tùy chỉnh hình nền Canvas trong <code className="font-mono text-slate-200">MainActivity.kt</code> và Application ID của dự án.
+          {/* In-Browser Hijacker Configuration Card */}
+          <div
+            id="in-browser-interceptor"
+            className="lg:col-span-5 bg-slate-950/85 backdrop-blur-md border border-emerald-400/35 rounded-xl p-5 flex flex-col justify-between space-y-4"
+          >
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Cơ chế Bắt Link Ngay Bên Trong Trình Duyệt</span>
+                </h2>
+                <span className="text-[11px] font-mono text-emerald-300">
+                  BrowserUrlInterceptorService.kt
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Hoạt động độc lập với Default Browser: Ngay cả khi bạn đang lướt Google trên Chrome,
+                Brave, Samsung Internet, Firefox... và bấm vào một video YouTube, dịch vụ sẽ tự động
+                chuyển hướng sang <code className="font-mono text-emerald-300">{config.routes.youtube_video.targetPackage || 'YouTube Mod'}</code>.
               </p>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-slate-300 mb-1.5">
-                  Chọn Chủ đề Hình nền (Atmospheric Canvas Wallpaper):
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {WALLPAPER_THEMES.map((theme) => (
-                    <button
-                      key={theme.id}
-                      type="button"
-                      onClick={() =>
-                        setConfig((prev) => ({ ...prev, wallpaperTheme: theme.id }))
-                      }
-                      className={`px-3 py-2 text-xs rounded-lg border text-left transition-all cursor-pointer whitespace-nowrap truncate ${
-                        config.wallpaperTheme === theme.id
-                          ? 'bg-white/15 border-emerald-400 text-white font-semibold'
-                          : 'bg-slate-900/70 border-white/10 text-slate-300 hover:bg-white/10'
-                      }`}
-                    >
-                      {theme.label}
-                    </button>
-                  ))}
+            <div className="space-y-2.5 pt-2 border-t border-white/10">
+              <div className="flex items-center justify-between gap-3 bg-slate-900/90 px-3.5 py-2.5 rounded-lg border border-white/10">
+                <div>
+                  <div className="text-xs font-semibold text-white">
+                    1. Canh thanh địa chỉ Trình duyệt (URL Bar Watcher)
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Tự động bỏ qua khi bạn đang gõ phím (<code className="font-mono">!node.isFocused</code>)
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setInBrowserInterceptorEnabled((prev) => !prev)}
+                  className={`px-3 py-1 rounded text-xs font-mono font-bold cursor-pointer whitespace-nowrap shrink-0 ${
+                    inBrowserInterceptorEnabled
+                      ? 'bg-emerald-400 text-slate-950'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  {inBrowserInterceptorEnabled ? 'ĐANG BẬT' : 'ĐANG TẮT'}
+                </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-white/10">
+              <div className="flex items-center justify-between gap-3 bg-slate-900/90 px-3.5 py-2.5 rounded-lg border border-white/10">
                 <div>
-                  <label className="block text-xs text-slate-300 mb-1">Application ID</label>
-                  <input
-                    type="text"
-                    value={config.applicationId}
-                    onChange={(e) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        applicationId: e.target.value.trim() || 'com.example.linkdispatcher',
-                      }))
-                    }
-                    className="w-full px-3 py-1.5 text-xs font-mono bg-slate-900 border border-white/15 rounded-lg text-white focus:outline-none focus:border-emerald-400"
-                  />
+                  <div className="text-xs font-semibold text-white">
+                    2. Tự động bấm Back trả trình duyệt về trang trước
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Không để lại tab <code className="font-mono">m.youtube.com</code> thừa trong Chrome
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-slate-300 mb-1">Tên ứng dụng</label>
-                  <input
-                    type="text"
-                    value={config.appName}
-                    onChange={(e) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        appName: e.target.value || 'Link Dispatcher',
-                      }))
-                    }
-                    className="w-full px-3 py-1.5 text-xs bg-slate-900 border border-white/15 rounded-lg text-white focus:outline-none focus:border-emerald-400"
-                  />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setInBrowserAutoBack((prev) => !prev)}
+                  className={`px-3 py-1 rounded text-xs font-mono font-bold cursor-pointer whitespace-nowrap shrink-0 ${
+                    inBrowserAutoBack
+                      ? 'bg-emerald-400 text-slate-950'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  {inBrowserAutoBack ? 'TỰ BẤM BACK' : 'GIỮ TAB'}
+                </button>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  const filePath = `app/src/main/java/${config.applicationId.replace(/\./g, '/')}/BrowserUrlInterceptorService.kt`;
+                  setSelectedFilePath(filePath);
+                  document.getElementById('source-workspace')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-emerald-300 hover:text-emerald-200 font-mono underline cursor-pointer"
+              >
+                Xem mã nguồn BrowserUrlInterceptorService.kt -&gt;
+              </button>
             </div>
           </div>
         </section>
 
-        {/* SECTION 0: DYNAMIC BROWSER AUTO-DETECTION & SELECTION */}
+        {/* SECTION 1: DYNAMIC BROWSER AUTO-DETECTION & SELECTION */}
         <section id="browser-discovery" className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div>
@@ -611,14 +623,14 @@ export default function App() {
                 </span>
               </h2>
               <p className="text-sm text-slate-300 mt-0.5">
-                Trên điện thoại thật, hàm{' '}
+                Hàm{' '}
                 <code className="font-mono text-emerald-300">
                   RouterActivity.detectInstalledBrowsers(context)
                 </code>{' '}
-                truy vấn trực tiếp <code className="font-mono">PackageManager</code> với{' '}
-                <code className="font-mono">ACTION_VIEW + CATEGORY_BROWSABLE</code> để tự động lấy
-                toàn bộ trình duyệt đang cài trên máy (không bao giờ định sẵn danh sách trình duyệt
-                cứng).
+                dùng <code className="font-mono">PackageManager.queryIntentActivities</code> để tự
+                động phát hiện mọi trình duyệt cài trên máy (vừa dùng để mở các link Web thông thường,
+                vừa giúp <code className="font-mono">BrowserUrlInterceptorService</code> biết chính xác
+                cần canh thanh địa chỉ của những trình duyệt nào!).
               </p>
             </div>
           </div>
@@ -628,10 +640,10 @@ export default function App() {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-white">
-                    Chọn Trình duyệt nhận các liên kết ngoài YouTube / YT Music / Spotify / FB / MXH:
+                    Chọn Trình duyệt nhận các liên kết Web thông thường:
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                     Bấm chọn trình duyệt bất kỳ được hệ thống phát hiện hoặc để chế độ Tự động.
+                    Bấm chọn trình duyệt bất kỳ được hệ thống phát hiện hoặc để chế độ Tự động.
                   </p>
                 </div>
                 <span className="text-xs font-mono text-emerald-300 shrink-0 tabular-nums">
@@ -676,7 +688,7 @@ export default function App() {
 
               <div className="px-4 py-3 rounded-lg bg-slate-900/90 border border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="text-slate-300">
-                  Trình duyệt sẽ mở mọi liên kết Web thông thường:
+                  Trình duyệt mở Web &amp; được canh bắt link YouTube bên trong:
                 </span>
                 <span className="font-mono font-semibold text-emerald-300">
                   {activeFallbackBrowser.appName} ({activeFallbackBrowser.packageName})
@@ -692,11 +704,6 @@ export default function App() {
                 </span>
                 <span className="text-[11px] font-mono text-slate-400">Dynamic Scan</span>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Vì ứng dụng dùng <code className="font-mono text-slate-200">queryIntentActivities</code>{' '}
-                để tự phát hiện trình duyệt, bất kỳ trình duyệt nào bạn cài trên điện thoại (như Via,
-                Vivaldi, Cốc Cốc, DuckDuckGo, Kiwi...) đều tự động xuất hiện để bạn chọn:
-              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="text"
@@ -724,18 +731,39 @@ export default function App() {
           </div>
         </section>
 
-        {/* SECTION 1: MULTI-ROUTE CONFIGURATION */}
+        {/* SECTION 2: MULTI-ROUTE CONFIGURATION */}
         <section id="multi-route-hub" className="space-y-5 pt-4 border-t border-white/10">
-          <div>
-            <h2 className="text-xl font-bold text-white">
-              02. Quản lý Đường dẫn Ứng dụng (YouTube, YT Music, Spotify, Facebook, MXH)
-            </h2>
-            <p className="text-sm text-slate-300 mt-0.5">
-              Chọn gói đích cho từng luồng hoặc gạt nút Bật/Tắt. Nếu luồng đang tắt hoặc gói Mod chưa
-              cài đặt trên máy, liên kết sẽ tự động chuyển sang trình duyệt{' '}
-              <strong className="text-emerald-300">{activeFallbackBrowser.appName}</strong> bạn đã
-              chọn ở mục trên.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-white">
+                02. Quản lý Đường dẫn Ứng dụng (YouTube, YT Music, Spotify, Facebook, MXH)
+              </h2>
+              <p className="text-sm text-slate-300 mt-0.5">
+                Cấu hình package đích cho từng ứng dụng và chọn chủ đề hình nền.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Palette className="w-4 h-4 text-emerald-400" />
+              <div className="flex gap-1.5">
+                {WALLPAPER_THEMES.map((theme) => (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() =>
+                      setConfig((prev) => ({ ...prev, wallpaperTheme: theme.id }))
+                    }
+                    className={`px-2.5 py-1 text-xs rounded-md border cursor-pointer transition-colors ${
+                      config.wallpaperTheme === theme.id
+                        ? 'bg-white/15 border-emerald-400 text-white font-semibold'
+                        : 'bg-slate-900/70 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {theme.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -865,32 +893,37 @@ export default function App() {
                   placeholder={`Đang để trống (Sẽ mở qua ${activeFallbackBrowser.appName})`}
                   className="w-full px-3.5 py-2 text-xs font-mono bg-slate-900 border border-white/15 rounded-lg text-white focus:outline-none focus:border-emerald-400"
                 />
-                <div className="text-[11px] text-slate-400 font-mono">
-                  {activeRoute.targetPackage
-                    ? `Nếu chưa cài ${activeRoute.targetPackage}: Tự tắt luồng & mở qua ${activeFallbackBrowser.appName}`
-                    : `Đang để trống Package -> Mở thẳng qua ${activeFallbackBrowser.appName}`}
-                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* SECTION 2: SIMULATOR */}
+        {/* SECTION 3: SIMULATOR */}
         <section id="intent-simulator" className="space-y-6 pt-6 border-t border-white/10">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-white">
-                03. Bàn thử nghiệm Mở Đường Dẫn Tự Động (App Mod &amp; Trình duyệt đã phát hiện)
+                03. Mô phỏng Bấm Link YouTube Ngay Trong Trình Duyệt ({activeFallbackBrowser.appName})
               </h2>
               <p className="text-sm text-slate-300 mt-0.5">
-                Thử nghiệm mở một đường link bất kỳ ngoài danh sách (như{' '}
-                <code className="font-mono text-emerald-300">vnexpress.net</code>) hoặc link YouTube /
-                Spotify để xem cách <code className="font-mono">RouterActivity</code> điều hướng tức
-                thì.
+                Bấm thử vào một kết quả YouTube ngay bên trong màn hình trình duyệt{' '}
+                <strong className="text-emerald-300">{activeFallbackBrowser.appName}</strong> bên
+                phải để kiểm chứng cách <code className="font-mono">BrowserUrlInterceptorService</code>{' '}
+                bắt lấy thanh địa chỉ và chuyển sang YouTube Mod.
               </p>
             </div>
 
             <div className="flex items-center gap-1 p-1 bg-slate-950/80 border border-white/15 rounded-lg self-start">
+              <button
+                onClick={() => setSimPhoneScreen('in_browser_demo')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  simPhoneScreen === 'in_browser_demo'
+                    ? 'bg-emerald-400 text-slate-950 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Đang ở trong {activeFallbackBrowser.appName}
+              </button>
               <button
                 onClick={() => setSimPhoneScreen('main_activity')}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
@@ -909,17 +942,7 @@ export default function App() {
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Kết quả RouterActivity
-              </button>
-              <button
-                onClick={() => setSimPhoneScreen('system_open_by_default')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                  simPhoneScreen === 'system_open_by_default'
-                    ? 'bg-slate-800 text-white'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Android &quot;Mở theo mặc định&quot;
+                Kết quả Bắt Link
               </button>
             </div>
           </div>
@@ -932,7 +955,7 @@ export default function App() {
                     Kiểm tra liên kết đầu vào (Để trống mặc định)
                   </h3>
                   <span className="text-xs font-mono text-emerald-300">
-                    Theme.NoDisplay · Auto Browser
+                    In-Browser + Default Opener
                   </span>
                 </div>
 
@@ -943,14 +966,14 @@ export default function App() {
                       value={simUrlInput}
                       onChange={(e) => setSimUrlInput(e.target.value)}
                       className="flex-1 px-3.5 py-2 text-xs font-mono bg-slate-900 border border-white/15 rounded-lg text-white focus:outline-none focus:border-emerald-400"
-                      placeholder="Để trống mặc định — Nhập link bất kỳ hoặc bấm nút mẫu bên dưới..."
+                      placeholder="Để trống mặc định — Nhập link hoặc bấm kết quả trong trình duyệt bên phải..."
                     />
                     <button
                       onClick={triggerSimulateRouter}
                       className="px-4 py-2 text-xs font-semibold bg-emerald-400 hover:bg-emerald-300 text-slate-950 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>Chạy thử Router</span>
+                      <span>Chạy thử</span>
                     </button>
                   </div>
 
@@ -980,20 +1003,24 @@ export default function App() {
                     </span>
                   </div>
                   <div className="px-4 py-2.5 flex items-center justify-between gap-3">
-                    <span className="text-slate-400 shrink-0">Trình duyệt dự phòng đã chọn</span>
-                    <span className="font-mono font-semibold text-sky-300 truncate">
-                      {activeFallbackBrowser.appName} ({activeFallbackBrowser.packageName})
+                    <span className="text-slate-400 shrink-0">
+                      Trạng thái bắt link TRONG trình duyệt
+                    </span>
+                    <span className="font-mono font-semibold text-emerald-300 truncate">
+                      {inBrowserInterceptorEnabled
+                        ? `ĐANG CANH URL BAR (${activeFallbackBrowser.packageName})`
+                        : 'ĐANG TẮT'}
                     </span>
                   </div>
                   <div className="px-4 py-2.5 flex items-center justify-between gap-4">
-                    <span className="text-slate-400 shrink-0">Hành động của RouterActivity</span>
+                    <span className="text-slate-400 shrink-0">Kết quả xử lý</span>
                     <span className="font-mono font-semibold text-white truncate">
                       {!matchedRouteConfig
-                        ? `Mở thẳng bằng ${activeFallbackBrowser.appName} (${activeFallbackBrowser.packageName})`
+                        ? `Mở bằng ${activeFallbackBrowser.appName} (${activeFallbackBrowser.packageName})`
                         : !matchedRouteConfig.enabled || !matchedRouteConfig.targetPackage
-                          ? `Mở thẳng bằng ${activeFallbackBrowser.appName}`
+                          ? `Mở bằng ${activeFallbackBrowser.appName}`
                           : simTargetPackageInstalled
-                            ? `Mở ứng dụng ${matchedRouteConfig.targetPackage}`
+                            ? `Chuyển thẳng sang ${matchedRouteConfig.targetPackage}`
                             : `Tự tắt luồng & Mở bằng ${activeFallbackBrowser.appName}`}
                     </span>
                   </div>
@@ -1007,8 +1034,7 @@ export default function App() {
                       Giả lập trạng thái cài đặt bản Mod trên máy
                     </div>
                     <div className="text-xs text-slate-400">
-                      Khi chưa cài bản Mod hoặc khi mở link ngoài danh sách, liên kết sẽ chuyển sang{' '}
-                      <strong className="text-slate-200">{activeFallbackBrowser.appName}</strong>.
+                      Thử nghiệm khi đã cài hoặc chưa cài gói Mod trên thiết bị.
                     </div>
                   </div>
 
@@ -1030,7 +1056,6 @@ export default function App() {
                 {simLastDispatchedToast && (
                   <div className="px-3.5 py-2.5 rounded-lg bg-slate-900 border border-white/10 text-xs font-mono text-emerald-300 flex items-center justify-between gap-2">
                     <span className="truncate">{simLastDispatchedToast}</span>
-                    <span className="text-slate-500 shrink-0">NoDisplay</span>
                   </div>
                 )}
               </div>
@@ -1040,27 +1065,113 @@ export default function App() {
             <div
               className={`lg:col-span-5 rounded-xl border border-white/20 p-5 flex flex-col justify-between relative overflow-hidden bg-gradient-to-b ${currentThemeObj.bgGradient}`}
             >
-              <svg
-                className="pointer-events-none absolute inset-0 w-full h-full opacity-75"
-                viewBox="0 0 400 700"
-                fill="none"
-                preserveAspectRatio="none"
-              >
-                <circle cx="340" cy="90" r="180" fill={currentThemeObj.orbPrimary} />
-                <circle cx="60" cy="560" r="160" fill={currentThemeObj.orbSecondary} />
-                <path
-                  d="M0 190 C 130 120, 270 260, 400 170"
-                  stroke={currentThemeObj.waveStroke}
-                  strokeWidth="2"
-                />
-              </svg>
-
               <div className="relative z-10 flex items-center justify-between text-[11px] font-mono text-slate-300 pb-3 border-b border-white/15">
-                <span>Android 14 · {currentThemeObj.label}</span>
                 <span>
-                  {simPhoneScreen === 'main_activity' ? 'MainActivity.kt' : 'Theme.NoDisplay'}
+                  {simPhoneScreen === 'in_browser_demo'
+                    ? `${activeFallbackBrowser.appName} (${activeFallbackBrowser.packageName})`
+                    : `Android 14 · ${config.appName}`}
+                </span>
+                <span className="text-emerald-300">
+                  {inBrowserInterceptorEnabled ? 'URL Interceptor ON' : 'Interceptor OFF'}
                 </span>
               </div>
+
+              {simPhoneScreen === 'in_browser_demo' && (
+                <div className="relative z-10 py-3 space-y-3 flex-1 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    {/* Simulated Chrome / Browser Address Bar */}
+                    <div className="bg-slate-900/95 border border-white/20 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                      <div className="text-[11px] font-mono text-slate-200 truncate">
+                        https://www.google.com/search?q=lofi+hip+hop+youtube
+                      </div>
+                      <span className="text-[10px] font-mono text-emerald-400 shrink-0">
+                        id/url_bar
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-slate-300">
+                      Bạn đang ở <strong>bên trong trình duyệt {activeFallbackBrowser.appName}</strong>.
+                      Hãy nhấn vào một kết quả bên dưới để xem{' '}
+                      <code className="font-mono text-emerald-300">
+                        BrowserUrlInterceptorService
+                      </code>{' '}
+                      bắt lấy link ngay khi trình duyệt vừa chuyển URL:
+                    </div>
+
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          triggerSimulateInBrowserClick(
+                            'https://m.youtube.com/watch?v=jfKfPfyJRdk'
+                          )
+                        }
+                        className="w-full text-left p-3 rounded-lg bg-slate-950/85 hover:bg-slate-900 border border-white/15 hover:border-emerald-400/60 transition-all cursor-pointer space-y-1"
+                      >
+                        <div className="text-[11px] font-mono text-emerald-300 truncate">
+                          https://m.youtube.com/watch?v=jfKfPfyJRdk
+                        </div>
+                        <div className="text-xs font-bold text-white">
+                          lofi hip hop radio - beats to relax/study to (YouTube Video)
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Nhấn vào đây trong {activeFallbackBrowser.appName} -&gt; Tự nhảy sang{' '}
+                          {config.routes.youtube_video.targetPackage || 'YouTube Mod'}
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          triggerSimulateInBrowserClick(
+                            'https://music.youtube.com/watch?v=dQw4w9WgXcQ'
+                          )
+                        }
+                        className="w-full text-left p-3 rounded-lg bg-slate-950/85 hover:bg-slate-900 border border-white/15 hover:border-emerald-400/60 transition-all cursor-pointer space-y-1"
+                      >
+                        <div className="text-[11px] font-mono text-emerald-300 truncate">
+                          https://music.youtube.com/watch?v=dQw4w9WgXcQ
+                        </div>
+                        <div className="text-xs font-bold text-white">
+                          Rick Astley - Never Gonna Give You Up (YouTube Music)
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Nhấn vào đây trong {activeFallbackBrowser.appName} -&gt; Tự nhảy sang{' '}
+                          {config.routes.youtube_music.targetPackage || 'YT Music Mod'}
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          triggerSimulateInBrowserClick(
+                            'https://vnexpress.net/khoa-hoc-cong-nghe'
+                          )
+                        }
+                        className="w-full text-left p-3 rounded-lg bg-slate-950/85 hover:bg-slate-900 border border-white/15 hover:border-sky-400/60 transition-all cursor-pointer space-y-1"
+                      >
+                        <div className="text-[11px] font-mono text-sky-300 truncate">
+                          https://vnexpress.net/khoa-hoc-cong-nghe
+                        </div>
+                        <div className="text-xs font-bold text-white">
+                          VnExpress Khoa học Công nghệ (Link Web thông thường)
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Không phải link App -&gt; Giữ nguyên đọc báo bình thường trong{' '}
+                          {activeFallbackBrowser.appName}
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setSimPhoneScreen('main_activity')}
+                    className="w-full py-2 text-xs font-semibold bg-white/15 hover:bg-white/25 text-white rounded-lg transition-colors cursor-pointer"
+                  >
+                    Mở giao diện cài đặt {config.appName}
+                  </button>
+                </div>
+              )}
 
               {simPhoneScreen === 'main_activity' && (
                 <div className="relative z-10 py-3 space-y-3 flex-1 flex flex-col justify-between">
@@ -1070,55 +1181,35 @@ export default function App() {
                       <div>
                         <div className="text-base font-bold text-white">{config.appName}</div>
                         <div className="text-[11px] text-slate-300">
-                          Điều hướng siêu mượt (Theme.NoDisplay &amp; Auto Browser)
+                          Bắt link cả ngoài hệ thống &amp; NGAY TRONG TRÌNH DUYỆT
                         </div>
                       </div>
                     </div>
 
-                    {/* Card Chọn Trình duyệt tự động phát hiện ngay trên màn hình điện thoại */}
-                    <div className="p-3 rounded-lg border border-emerald-400/30 bg-slate-950/80 backdrop-blur-md space-y-2">
+                    <div className="p-3 rounded-lg border border-emerald-400/40 bg-slate-950/85 space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-white">
-                          Trình duyệt mở các link Web còn lại
+                          Bắt link TRONG Trình duyệt
                         </span>
-                        <span className="text-[10px] font-mono text-emerald-300">
-                          Auto-Detected ({simDetectedBrowsers.length})
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
                         <button
                           type="button"
-                          onClick={() => setSimSelectedBrowserPkg('')}
-                          className={`px-2 py-1 text-[10px] rounded border cursor-pointer ${
-                            simSelectedBrowserPkg === ''
-                              ? 'bg-emerald-400 text-slate-950 font-bold border-emerald-300'
-                              : 'bg-slate-900 text-slate-300 border-white/10'
+                          onClick={() => setInBrowserInterceptorEnabled((p) => !p)}
+                          className={`px-2 py-0.5 text-[10px] font-mono rounded cursor-pointer ${
+                            inBrowserInterceptorEnabled
+                              ? 'bg-emerald-400 text-slate-950 font-bold'
+                              : 'bg-slate-800 text-slate-400'
                           }`}
                         >
-                          Tự động ({simDetectedBrowsers[0]?.appName})
+                          {inBrowserInterceptorEnabled ? 'ĐANG BẬT' : 'ĐANG TẮT'}
                         </button>
-                        {simDetectedBrowsers.map((b) => (
-                          <button
-                            key={b.packageName}
-                            type="button"
-                            onClick={() => setSimSelectedBrowserPkg(b.packageName)}
-                            className={`px-2 py-1 text-[10px] rounded border cursor-pointer ${
-                              simSelectedBrowserPkg === b.packageName
-                                ? 'bg-emerald-400 text-slate-950 font-bold border-emerald-300'
-                                : 'bg-slate-900 text-slate-300 border-white/10'
-                            }`}
-                          >
-                            {b.appName}
-                          </button>
-                        ))}
                       </div>
-                      <div className="text-[10px] font-mono text-emerald-300 truncate">
-                        Đang chọn: {activeFallbackBrowser.appName} (
-                        {activeFallbackBrowser.packageName})
+                      <div className="text-[10px] text-slate-300">
+                        Canh thanh địa chỉ {activeFallbackBrowser.appName} &amp; tự bấm Back đóng tab
+                        thừa
                       </div>
                     </div>
 
-                    <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+                    <div className="space-y-1.5 max-h-[230px] overflow-y-auto pr-1">
                       {(Object.values(config.routes) as RouteRuleConfig[]).map((route, idx) => (
                         <div
                           key={route.id}
@@ -1132,41 +1223,21 @@ export default function App() {
                             <span className="text-xs font-semibold text-white">
                               {idx + 1}. {route.title}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateRoute(route.id, (r) => ({ ...r, enabled: !r.enabled }))
-                              }
-                              className={`px-2 py-0.5 text-[10px] font-mono rounded cursor-pointer whitespace-nowrap shrink-0 ${
-                                route.enabled
-                                  ? 'bg-emerald-400 text-slate-950 font-bold'
-                                  : 'bg-slate-800 text-slate-400'
-                              }`}
-                            >
-                              {route.enabled ? 'ĐANG BẬT' : 'ĐÃ TẮT'}
-                            </button>
-                          </div>
-
-                          <div className="mt-1.5">
-                            <div className="px-2 py-1 rounded bg-slate-900/90 border border-white/10 font-mono text-[11px] text-emerald-300 truncate">
-                              Đích:{' '}
-                              {route.targetPackage ||
-                                `Mở qua ${activeFallbackBrowser.appName}`}
-                            </div>
+                            <span className="text-[10px] font-mono text-emerald-300 truncate">
+                              {route.targetPackage || activeFallbackBrowser.appName}
+                            </span>
                           </div>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="space-y-2 pt-2 border-t border-white/15">
-                    <button
-                      onClick={() => setSimPhoneScreen('system_open_by_default')}
-                      className="w-full py-2 text-xs font-semibold bg-white/15 hover:bg-white/25 text-white rounded-lg transition-colors cursor-pointer"
-                    >
-                      Đặt làm &apos;Ứng dụng mở đường dẫn mặc định&apos;
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setSimPhoneScreen('in_browser_demo')}
+                    className="w-full py-2 text-xs font-semibold bg-emerald-400 text-slate-950 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Quay lại thử nghiệm bấm link trong {activeFallbackBrowser.appName}
+                  </button>
                 </div>
               )}
 
@@ -1174,73 +1245,29 @@ export default function App() {
                 <div className="relative z-10 py-6 space-y-4 flex-1 flex flex-col justify-between">
                   <div className="space-y-3 bg-slate-950/85 backdrop-blur-md p-4 rounded-xl border border-white/15">
                     <div className="text-xs font-mono text-emerald-400">
-                      RouterActivity (Theme.NoDisplay) -&gt; finish()
+                      BrowserUrlInterceptorService + RouterActivity
                     </div>
                     <h4 className="text-base font-bold text-white">
                       {matchedRouteConfig &&
                       matchedRouteConfig.enabled &&
                       matchedRouteConfig.targetPackage &&
-                      simTargetPackageInstalled
-                        ? `Đã mở tức thì ứng dụng ${matchedRouteConfig.targetPackage}`
-                        : `Đã chuyển thẳng sang trình duyệt ${activeFallbackBrowser.appName} (${activeFallbackBrowser.packageName})`}
+                      simTargetPackageInstalled &&
+                      inBrowserInterceptorEnabled
+                        ? `Đã bắt lấy URL trong ${activeFallbackBrowser.appName} & mở thẳng ${matchedRouteConfig.targetPackage}!`
+                        : `Đang mở trong trình duyệt ${activeFallbackBrowser.appName} (${activeFallbackBrowser.packageName})`}
                     </h4>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Mọi đường dẫn không nằm trong các ứng dụng đã bật sẽ tự động đi thẳng qua trình
-                      duyệt <strong className="text-emerald-300">{activeFallbackBrowser.appName}</strong>{' '}
-                      được phát hiện trên máy mà không hiện bất kỳ bảng báo lỗi nào.
+                      {matchedRouteConfig && inBrowserInterceptorEnabled
+                        ? `Ngay khi thanh địa chỉ của ${activeFallbackBrowser.appName} vừa chuyển sang "${parsedPreview.normalizedHttpsUrl}", dịch vụ đã phóng thẳng Intent sang "${matchedRouteConfig.targetPackage}" và tự bấm Back trả trình duyệt về trang tìm kiếm trước đó.`
+                        : `Liên kết không nằm trong danh sách ứng dụng Mod nên được giữ nguyên để bạn lướt web bình thường trên ${activeFallbackBrowser.appName}.`}
                     </p>
                   </div>
 
                   <button
-                    onClick={() => setSimPhoneScreen('main_activity')}
+                    onClick={() => setSimPhoneScreen('in_browser_demo')}
                     className="w-full py-2 text-xs font-medium bg-slate-900/90 hover:bg-slate-800 text-white rounded-lg border border-white/15 transition-colors cursor-pointer"
                   >
-                    Quay lại màn hình chính
-                  </button>
-                </div>
-              )}
-
-              {simPhoneScreen === 'system_open_by_default' && (
-                <div className="relative z-10 py-4 space-y-3 flex-1 flex flex-col justify-between">
-                  <div className="space-y-2.5 bg-slate-950/85 backdrop-blur-md p-4 rounded-xl border border-white/15">
-                    <div className="text-sm font-bold text-white">
-                      Ứng dụng mở đường dẫn mặc định (Default Browser)
-                    </div>
-                    <p className="text-[11px] text-slate-300">
-                      Khi chọn {config.appName} làm ứng dụng mở đường dẫn mặc định:
-                    </p>
-                    <div className="space-y-1.5 pt-1">
-                      {(Object.values(config.routes) as RouteRuleConfig[]).map((r) => (
-                        <div
-                          key={r.id}
-                          className="flex items-center justify-between text-xs py-1 border-b border-white/5"
-                        >
-                          <span className="font-mono text-slate-200">{r.domains[0]}</span>
-                          <span
-                            className={`font-mono text-[11px] ${
-                              r.enabled ? 'text-emerald-400' : 'text-slate-400'
-                            }`}
-                          >
-                            {r.enabled
-                              ? `-> ${r.targetPackage || activeFallbackBrowser.appName}`
-                              : `-> ${activeFallbackBrowser.appName}`}
-                          </span>
-                        </div>
-                      ))}
-                      <div className="flex items-center justify-between text-xs py-1.5">
-                        <span className="font-mono text-sky-300">Các trang Web khác (*.*)</span>
-                        <span className="font-mono text-[11px] text-sky-300 font-semibold">
-                          -&gt; {activeFallbackBrowser.appName}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setSimPhoneScreen('main_activity')}
-                    className="w-full py-2 text-xs font-medium bg-slate-900/90 hover:bg-slate-800 text-white rounded-lg border border-white/15 transition-colors cursor-pointer"
-                  >
-                    Quay lại {config.appName}
+                    Quay lại trình duyệt {activeFallbackBrowser.appName}
                   </button>
                 </div>
               )}
@@ -1248,15 +1275,15 @@ export default function App() {
           </div>
         </section>
 
-        {/* SECTION 3: SOURCE CODE EXPLORER */}
+        {/* SECTION 4: SOURCE CODE EXPLORER */}
         <section id="source-workspace" className="space-y-5 pt-6 border-t border-white/10">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-white">
-                04. Trọn bộ Mã nguồn Android Native (Tự động phát hiện Trình duyệt &amp; Chuyển tiếp)
+                04. Trọn bộ Mã nguồn Android Native (Bao gồm BrowserUrlInterceptorService.kt)
               </h2>
               <p className="text-sm text-slate-300 mt-0.5">
-                Sao chép từng file hoặc nhấn nút <strong>Tải trọn bộ Repo (.ZIP)</strong> để lấy toàn bộ dự án mới nhất.
+                Sao chép từng file hoặc nhấn nút <strong>Tải trọn bộ Repo (.ZIP)</strong> để lấy toàn bộ 15 file cấu hình &amp; mã nguồn.
               </p>
             </div>
 
@@ -1264,7 +1291,7 @@ export default function App() {
               {(
                 [
                   { id: 'all', label: `Tất cả (${projectFiles.length})` },
-                  { id: 'core', label: 'Mã nguồn & Logo (6)' },
+                  { id: 'core', label: 'Mã nguồn & XML (9)' },
                   { id: 'gradle', label: 'Cấu hình Gradle (5)' },
                   { id: 'ci', label: 'GitHub Actions (1)' },
                 ] as const
@@ -1299,7 +1326,7 @@ export default function App() {
                   {filteredFiles.length} files
                 </span>
               </div>
-              <div className="divide-y divide-white/10">
+              <div className="divide-y divide-white/10 max-h-[600px] overflow-y-auto">
                 {filteredFiles.map((file) => {
                   const isSelected = activeFile.path === file.path;
                   return (
@@ -1380,63 +1407,10 @@ export default function App() {
             </div>
           </div>
         </section>
-
-        {/* SECTION 4: ARCHITECTURAL EXPLANATION */}
-        <section
-          id="architecture-guide"
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-white/10"
-        >
-          <div className="bg-slate-950/75 backdrop-blur-md border border-white/15 rounded-xl p-5 space-y-2">
-            <div className="text-xs font-mono text-emerald-400">
-              01. Tự động Phát hiện Trình duyệt
-            </div>
-            <h3 className="text-base font-bold text-white">
-              Không định sẵn cứng bất kỳ trình duyệt nào
-            </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Nhờ khai báo thẻ <code className="font-mono">&lt;intent&gt;</code> với{' '}
-              <code className="font-mono">CATEGORY_BROWSABLE</code> trong{' '}
-              <code className="font-mono">AndroidManifest.xml</code>, hàm{' '}
-              <code className="font-mono">detectInstalledBrowsers()</code> dùng{' '}
-              <code className="font-mono">PackageManager.queryIntentActivities()</code> để tự động
-              phát hiện mọi trình duyệt thật đang có trên máy.
-            </p>
-          </div>
-
-          <div className="bg-slate-950/75 backdrop-blur-md border border-white/15 rounded-xl p-5 space-y-2">
-            <div className="text-xs font-mono text-emerald-400">
-              02. Chọn Trình duyệt Mở Link Còn Lại
-            </div>
-            <h3 className="text-base font-bold text-white">
-              Tự động chuyển mọi link ngoài danh sách sang Trình duyệt đã chọn
-            </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Khi đặt ứng dụng làm trình mở đường dẫn mặc định, mọi liên kết không thuộc YouTube,
-              YouTube Music, Spotify, Facebook, MXH sẽ tự động mở thẳng bằng trình duyệt bạn đã chọn
-              trong <code className="font-mono">MainActivity.kt</code> (lưu tại{' '}
-              <code className="font-mono">KEY_FALLBACK_BROWSER_PACKAGE</code>).
-            </p>
-          </div>
-
-          <div className="bg-slate-950/75 backdrop-blur-md border border-white/15 rounded-xl p-5 space-y-2">
-            <div className="text-xs font-mono text-emerald-400">
-              03. Chống Lặp Vô Tận &amp; 0ms UI
-            </div>
-            <h3 className="text-base font-bold text-white">
-              Loại trừ chính Package của App khi quét trình duyệt
-            </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Khi chính ứng dụng đang là Default Browser, bộ quét tự động lọc bỏ{' '}
-              <code className="font-mono">pkg == context.packageName</code> để không bao giờ tự gọi
-              lại chính nó, đồng thời giữ nguyên <code className="font-mono">Theme.NoDisplay</code>{' '}
-              chuyển tiếp tức thì.
-            </p>
-          </div>
-        </section>
       </main>
 
       <footer className="border-t border-white/10 py-6 px-6 text-center text-xs text-slate-400 bg-[#050811]/80 backdrop-blur-sm">
-        Link Dispatcher Android Native · Auto Browser Discovery · Kotlin 2.0 + Jetpack Compose Material 3
+        Link Dispatcher Android Native · In-Browser URL Interceptor · Auto Browser Discovery · Kotlin 2.0
       </footer>
     </div>
   );
