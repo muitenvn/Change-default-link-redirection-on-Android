@@ -23,6 +23,11 @@ export interface RouteRuleConfig {
   presets: Array<{ label: string; pkg: string }>;
 }
 
+export interface DetectedBrowserDeviceItem {
+  appName: string;
+  packageName: string;
+}
+
 export interface ProjectConfig {
   appName: string;
   applicationId: string;
@@ -48,7 +53,7 @@ export interface ParsedMultiPlatformPreview {
   originalInput: string;
   extractedUrl: string | null;
   normalizedHttpsUrl: string | null;
-  serviceId: ServiceRouteId;
+  serviceId: ServiceRouteId | null;
   serviceTitle: string;
   extractedId: string | null;
   playlistId: string | null;
@@ -74,7 +79,7 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
       { label: 'RVX YouTube (Mod)', pkg: 'app.rvx.android.youtube' },
       { label: 'YouTube Thường', pkg: 'com.google.android.youtube' },
       { label: 'NewPipe', pkg: 'org.schabi.newpipe' },
-      { label: 'Mở bằng Web (Để trống)', pkg: '' },
+      { label: 'Mở bằng Trình duyệt đã chọn (Để trống)', pkg: '' },
     ],
   },
   youtube_music: {
@@ -91,7 +96,7 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
       { label: 'ReVanced Music (Mod)', pkg: 'app.revanced.android.apps.youtube.music' },
       { label: 'Morphe Music (Mod)', pkg: 'app.morphe.android.apps.youtube.music' },
       { label: 'YouTube Music Thường', pkg: 'com.google.android.apps.youtube.music' },
-      { label: 'Mở bằng Web (Để trống)', pkg: '' },
+      { label: 'Mở bằng Trình duyệt đã chọn (Để trống)', pkg: '' },
     ],
   },
   spotify: {
@@ -107,7 +112,7 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
       { label: 'Spotify / xManager', pkg: 'com.spotify.music' },
       { label: 'Spotify Lite', pkg: 'com.spotify.lite' },
       { label: 'Spotube', pkg: 'oss.krtirtho.spotube' },
-      { label: 'Mở bằng Web (Để trống)', pkg: '' },
+      { label: 'Mở bằng Trình duyệt đã chọn (Để trống)', pkg: '' },
     ],
   },
   facebook: {
@@ -123,7 +128,7 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
       { label: 'Facebook', pkg: 'com.facebook.katana' },
       { label: 'Facebook Lite', pkg: 'com.facebook.lite' },
       { label: 'SlimSocial', pkg: 'it.rignanese.leo.slimfacebook' },
-      { label: 'Mở bằng Web (Để trống)', pkg: '' },
+      { label: 'Mở bằng Trình duyệt đã chọn (Để trống)', pkg: '' },
     ],
   },
   social_media: {
@@ -150,7 +155,7 @@ export const INITIAL_ROUTES: Record<ServiceRouteId, RouteRuleConfig> = {
       { label: 'Instander (IG Mod)', pkg: 'com.instander.android' },
       { label: 'X / Twitter', pkg: 'com.twitter.android' },
       { label: 'Reddit', pkg: 'com.reddit.frontpage' },
-      { label: 'Mở bằng Web (Để trống)', pkg: '' },
+      { label: 'Mở bằng Trình duyệt đã chọn (Để trống)', pkg: '' },
     ],
   },
 };
@@ -162,8 +167,8 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       originalInput: '',
       extractedUrl: null,
       normalizedHttpsUrl: null,
-      serviceId: 'youtube_video',
-      serviceTitle: 'Chưa nhập link',
+      serviceId: null,
+      serviceTitle: 'Chưa nhập link (Để trống mặc định)',
       extractedId: null,
       playlistId: null,
       timestampSeconds: null,
@@ -213,7 +218,63 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       };
     }
 
-    // 2. Spotify
+    // 2. YouTube Video
+    if (
+      host === 'youtube.com' ||
+      host === 'www.youtube.com' ||
+      host === 'm.youtube.com' ||
+      host === 'youtu.be'
+    ) {
+      let videoId: string | null = null;
+      let linkType = 'WATCH';
+
+      if (host === 'youtu.be') {
+        videoId = segments[0] || null;
+        linkType = 'SHORTLINK';
+      } else if (firstSegment === 'watch') {
+        videoId = workingUrl.searchParams.get('v');
+        linkType = 'WATCH';
+      } else if (firstSegment === 'shorts') {
+        videoId = segments[1] || null;
+        linkType = 'SHORTS';
+      } else if (firstSegment === 'live') {
+        videoId = segments[1] || null;
+        linkType = 'LIVE';
+      } else if (firstSegment === 'embed' || firstSegment === 'v') {
+        videoId = segments[1] || null;
+        linkType = 'WATCH';
+      } else if (firstSegment === 'playlist') {
+        linkType = 'PLAYLIST';
+      } else {
+        videoId = workingUrl.searchParams.get('v');
+      }
+
+      const playlistId = workingUrl.searchParams.get('list');
+      const timestampSeconds =
+        workingUrl.searchParams.get('t') || workingUrl.searchParams.get('start');
+
+      const nativeSchemeUri = videoId
+        ? timestampSeconds
+          ? `vnd.youtube:${videoId}?t=${timestampSeconds}`
+          : `vnd.youtube:${videoId}`
+        : null;
+
+      return {
+        originalInput: input,
+        extractedUrl: candidate,
+        normalizedHttpsUrl,
+        serviceId: 'youtube_video',
+        serviceTitle: 'YouTube Video',
+        extractedId: videoId,
+        playlistId,
+        timestampSeconds,
+        nativeSchemeUri,
+        linkType,
+        host,
+      };
+    }
+
+    // 3. Spotify
     if (host.includes('spotify.com') || host === 'spotify.link' || host === 'spoti.fi') {
       const validTypes = ['track', 'album', 'playlist', 'artist', 'episode', 'show'];
       const resourceType = validTypes.includes(firstSegment) ? firstSegment : null;
@@ -236,7 +297,7 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       };
     }
 
-    // 3. Facebook
+    // 4. Facebook
     if (host.includes('facebook.com') || host === 'fb.watch' || host === 'fb.com') {
       const encoded = encodeURIComponent(normalizedHttpsUrl);
       const videoId = workingUrl.searchParams.get('v') || segments[segments.length - 1] || null;
@@ -255,7 +316,7 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       };
     }
 
-    // 4. Social Media (TikTok, Instagram, Threads, X, Reddit)
+    // 5. Social Media (TikTok, Instagram, Threads, X, Reddit)
     if (
       host.includes('tiktok.com') ||
       host.includes('instagram.com') ||
@@ -289,52 +350,18 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       };
     }
 
-    // 5. Default: YouTube Video
-    let videoId: string | null = null;
-    let linkType = 'WATCH';
-
-    if (host === 'youtu.be') {
-      videoId = segments[0] || null;
-      linkType = 'SHORTLINK';
-    } else if (firstSegment === 'watch') {
-      videoId = workingUrl.searchParams.get('v');
-      linkType = 'WATCH';
-    } else if (firstSegment === 'shorts') {
-      videoId = segments[1] || null;
-      linkType = 'SHORTS';
-    } else if (firstSegment === 'live') {
-      videoId = segments[1] || null;
-      linkType = 'LIVE';
-    } else if (firstSegment === 'embed' || firstSegment === 'v') {
-      videoId = segments[1] || null;
-      linkType = 'WATCH';
-    } else if (firstSegment === 'playlist') {
-      linkType = 'PLAYLIST';
-    } else {
-      videoId = workingUrl.searchParams.get('v');
-    }
-
-    const playlistId = workingUrl.searchParams.get('list');
-    const timestampSeconds =
-      workingUrl.searchParams.get('t') || workingUrl.searchParams.get('start');
-
-    const nativeSchemeUri = videoId
-      ? timestampSeconds
-        ? `vnd.youtube:${videoId}?t=${timestampSeconds}`
-        : `vnd.youtube:${videoId}`
-      : null;
-
+    // 6. Các liên kết Web còn lại (Không thuộc 5 dịch vụ trên) -> Tự động qua Trình duyệt đã phát hiện/chọn
     return {
       originalInput: input,
       extractedUrl: candidate,
       normalizedHttpsUrl,
-      serviceId: 'youtube_video',
-      serviceTitle: 'YouTube Video',
-      extractedId: videoId,
-      playlistId,
-      timestampSeconds,
-      nativeSchemeUri,
-      linkType,
+      serviceId: null,
+      serviceTitle: 'Liên kết Web ngoài danh sách (Chuyển qua Trình duyệt đã chọn)',
+      extractedId: null,
+      playlistId: null,
+      timestampSeconds: null,
+      nativeSchemeUri: null,
+      linkType: 'GENERIC_WEB',
       host,
     };
   } catch {
@@ -342,7 +369,7 @@ export function parseYoutubeInputForPreview(input: string): ParsedMultiPlatformP
       originalInput: input,
       extractedUrl: null,
       normalizedHttpsUrl: null,
-      serviceId: 'youtube_video',
+      serviceId: null,
       serviceTitle: 'Không hợp lệ',
       extractedId: null,
       playlistId: null,
@@ -395,11 +422,6 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
       'com.instagram.barcelona',
       'com.twitter.android',
       'com.reddit.frontpage',
-      'com.android.chrome',
-      'com.brave.browser',
-      'org.mozilla.firefox',
-      'com.microsoft.emmx',
-      'com.sec.android.app.sbrowser',
     ])
   );
 
@@ -413,12 +435,15 @@ export function generateAndroidProjectFiles(config: ProjectConfig): GeneratedFil
 
     <!--
       Chính sách Package Visibility của Android 11+ (API 30+):
-      Khai báo các package đích và truy vấn trình duyệt (http/https BROWSABLE)
-      để kiểm tra trạng thái cài đặt và chuyển tiếp mượt mà trong mili-giây.
+      - Khai báo thẻ <intent> với ACTION_VIEW + CATEGORY_BROWSABLE (scheme http/https)
+        để hệ thống TỰ ĐỘNG PHÁT HIỆN toàn bộ các trình duyệt Web đang cài trên máy
+        (Chrome, Brave, Firefox, Samsung Internet, Edge, Opera, Vivaldi, Cốc Cốc,...)
+        mà không cần định sẵn danh sách trình duyệt cứng.
     -->
     <queries>
 ${queriesPackagesXml}
 
+        <!-- Tự động phát hiện mọi Trình duyệt Web cài trên thiết bị -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
@@ -638,6 +663,14 @@ import android.os.Bundle
 import java.util.regex.Pattern
 
 /**
+ * Thông tin một Trình duyệt Web được hệ thống tự động phát hiện trên thiết bị
+ */
+data class DetectedBrowser(
+    val appName: String,
+    val packageName: String
+)
+
+/**
  * Danh mục các dịch vụ (luồng điều hướng) được hỗ trợ
  */
 enum class ServiceRoute(
@@ -660,7 +693,7 @@ enum class ServiceRoute(
             "RVX YouTube (Mod)" to "app.rvx.android.youtube",
             "YouTube Thường" to "com.google.android.youtube",
             "NewPipe" to "org.schabi.newpipe",
-            "Mở bằng Web (Để trống)" to ""
+            "Mở bằng Trình duyệt đã chọn (Để trống)" to ""
         )
     ),
     YOUTUBE_MUSIC(
@@ -674,7 +707,7 @@ enum class ServiceRoute(
             "ReVanced Music (Mod)" to "app.revanced.android.apps.youtube.music",
             "Morphe Music (Mod)" to "app.morphe.android.apps.youtube.music",
             "YouTube Music Thường" to "com.google.android.apps.youtube.music",
-            "Mở bằng Web (Để trống)" to ""
+            "Mở bằng Trình duyệt đã chọn (Để trống)" to ""
         )
     ),
     SPOTIFY(
@@ -687,7 +720,7 @@ enum class ServiceRoute(
             "Spotify / xManager" to "com.spotify.music",
             "Spotify Lite" to "com.spotify.lite",
             "Spotube" to "oss.krtirtho.spotube",
-            "Mở bằng Web (Để trống)" to ""
+            "Mở bằng Trình duyệt đã chọn (Để trống)" to ""
         )
     ),
     FACEBOOK(
@@ -700,7 +733,7 @@ enum class ServiceRoute(
             "Facebook" to "com.facebook.katana",
             "Facebook Lite" to "com.facebook.lite",
             "SlimSocial" to "it.rignanese.leo.slimfacebook",
-            "Mở bằng Web (Để trống)" to ""
+            "Mở bằng Trình duyệt đã chọn (Để trống)" to ""
         )
     ),
     SOCIAL_MEDIA(
@@ -716,7 +749,7 @@ enum class ServiceRoute(
             "Instander (IG Mod)" to "com.instander.android",
             "X / Twitter" to "com.twitter.android",
             "Reddit" to "com.reddit.frontpage",
-            "Mở bằng Web (Để trống)" to ""
+            "Mở bằng Trình duyệt đã chọn (Để trống)" to ""
         )
     )
 }
@@ -731,12 +764,12 @@ data class TranslatedLinkResult(
 )
 
 /**
- * RouterActivity kế thừa trực tiếp từ android.app.Activity với Theme.NoDisplay (như phiên bản đầu):
- * - Không khởi tạo cửa sổ giao diện, chuyển tiếp siêu mượt trong vài mili-giây và gọi finish() ngay lập tức.
- * - KHÔNG tự mở app mặc định khi chưa cài bản Mod.
- * - KHÔNG hiển thị bảng báo lỗi "Không tìm thấy ứng dụng đích".
- * - Nếu gói đích (ví dụ app.morphe.android.youtube) chưa được cài đặt trên máy:
- *   tự động tắt luồng / vô hiệu hóa ComponentName của luồng đó và mở thẳng qua trình duyệt Web.
+ * RouterActivity kế thừa trực tiếp từ android.app.Activity với Theme.NoDisplay:
+ * - Chuyển tiếp siêu mượt trong vài mili-giây và gọi finish() ngay lập tức.
+ * - Khi đặt ứng dụng làm Trình mở đường dẫn mặc định (Default Browser), tất cả các đường link
+ *   KHÔNG nằm trong danh sách ứng dụng (YouTube, YT Music, Spotify, Facebook, MXH) sẽ tự động
+ *   được chuyển thẳng qua Trình duyệt Web mà người dùng đã chọn (hoặc trình duyệt tự động
+ *   phát hiện trên máy qua PackageManager.queryIntentActivities).
  */
 class RouterActivity : Activity() {
 
@@ -749,21 +782,28 @@ class RouterActivity : Activity() {
     private fun handleIncomingIntent(incomingIntent: Intent?) {
         val incomingUri = extractIncomingUri(incomingIntent) ?: return
         val translated = analyzeAndTranslateUri(incomingUri)
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val service = translated.service
 
+        // Nếu link không nằm trong các dịch vụ ứng dụng (YouTube, YT Music, Spotify, FB, MXH)
+        // -> Tự động chuyển thẳng sang Trình duyệt Web đã chọn / tự động phát hiện trên máy
         if (service == null) {
-            openDirectlyInExternalBrowser(translated.normalizedHttpsUrl)
+            prefs.edit()
+                .putString(KEY_LAST_DISPATCHED_URL, translated.normalizedHttpsUrl)
+                .putString(KEY_LAST_VIDEO_ID, "WEB_BROWSER")
+                .putInt(KEY_DISPATCH_COUNT, prefs.getInt(KEY_DISPATCH_COUNT, 0) + 1)
+                .apply()
+            openInDetectedBrowser(prefs, translated.normalizedHttpsUrl)
             return
         }
 
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val isRouteEnabled = prefs.getBoolean(
             prefKeyRouteEnabled(service),
             service.defaultEnabled
         )
 
         if (!isRouteEnabled) {
-            openDirectlyInExternalBrowser(translated.normalizedHttpsUrl)
+            openInDetectedBrowser(prefs, translated.normalizedHttpsUrl)
             return
         }
 
@@ -777,15 +817,15 @@ class RouterActivity : Activity() {
             .apply()
 
         if (targetPackage.isBlank()) {
-            openDirectlyInExternalBrowser(translated.normalizedHttpsUrl)
+            openInDetectedBrowser(prefs, translated.normalizedHttpsUrl)
             return
         }
 
         // Nếu gói đích (ví dụ app.morphe.android.youtube) chưa cài đặt:
-        // Tự động tắt luồng, vô hiệu hóa ComponentName của luồng đó và mở thẳng qua trình duyệt
+        // Tự động tắt luồng, vô hiệu hóa ComponentName của luồng đó và mở thẳng qua trình duyệt đã chọn
         if (!isPackageInstalled(targetPackage)) {
             disableRouteAndAliasSilently(prefs, service)
-            openDirectlyInExternalBrowser(translated.normalizedHttpsUrl)
+            openInDetectedBrowser(prefs, translated.normalizedHttpsUrl)
             return
         }
 
@@ -797,7 +837,7 @@ class RouterActivity : Activity() {
 
         if (!launched) {
             disableRouteAndAliasSilently(prefs, service)
-            openDirectlyInExternalBrowser(translated.normalizedHttpsUrl)
+            openInDetectedBrowser(prefs, translated.normalizedHttpsUrl)
         }
     }
 
@@ -1039,41 +1079,44 @@ class RouterActivity : Activity() {
         return false
     }
 
-    private fun openDirectlyInExternalBrowser(httpsUrl: String) {
+    /**
+     * Mở liên kết bằng Trình duyệt Web mà người dùng đã chọn hoặc trình duyệt
+     * được hệ thống TỰ ĐỘNG PHÁT HIỆN trên thiết bị (không định sẵn danh sách trình duyệt cứng).
+     */
+    private fun openInDetectedBrowser(
+        prefs: android.content.SharedPreferences,
+        httpsUrl: String
+    ) {
         val uri = Uri.parse(httpsUrl)
-        val knownBrowsers = listOf(
-            "com.android.chrome",
-            "com.brave.browser",
-            "org.mozilla.firefox",
-            "com.microsoft.emmx",
-            "com.sec.android.app.sbrowser",
-            "com.opera.browser"
-        )
+        val preferredBrowserPkg = prefs.getString(KEY_FALLBACK_BROWSER_PACKAGE, "")?.trim().orEmpty()
 
-        for (browserPkg in knownBrowsers) {
-            if (isPackageInstalled(browserPkg)) {
-                try {
-                    val directBrowserIntent = Intent(Intent.ACTION_VIEW, uri).apply {
-                        setPackage(browserPkg)
-                        addCategory(Intent.CATEGORY_BROWSABLE)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    startActivity(directBrowserIntent)
-                    return
-                } catch (_: Exception) {
-                    // Thử trình duyệt tiếp theo
-                }
+        // 1. Ưu tiên mở bằng trình duyệt mà người dùng đã chọn (nếu vẫn còn cài trên máy)
+        if (preferredBrowserPkg.isNotEmpty() && preferredBrowserPkg != packageName && isPackageInstalled(preferredBrowserPkg)) {
+            if (tryStartBrowserPackage(uri, preferredBrowserPkg)) {
+                return
             }
         }
 
-        try {
-            val genericIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+        // 2. Tự động phát hiện danh sách toàn bộ trình duyệt hiện có trên máy qua PackageManager
+        val detectedBrowsers = detectInstalledBrowsers(this)
+        for (browser in detectedBrowsers) {
+            if (tryStartBrowserPackage(uri, browser.packageName)) {
+                return
+            }
+        }
+    }
+
+    private fun tryStartBrowserPackage(uri: Uri, browserPkg: String): Boolean {
+        return try {
+            val browserIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                setPackage(browserPkg)
                 addCategory(Intent.CATEGORY_BROWSABLE)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            startActivity(genericIntent)
+            startActivity(browserIntent)
+            true
         } catch (_: Exception) {
-            // Không hiển thị bảng báo lỗi
+            false
         }
     }
 
@@ -1099,6 +1142,7 @@ class RouterActivity : Activity() {
         const val PREFS_NAME = "link_dispatcher_prefs"
         const val KEY_USE_NATIVE_SCHEME = "use_vnd_scheme"
         const val KEY_WALLPAPER_STYLE = "wallpaper_style"
+        const val KEY_FALLBACK_BROWSER_PACKAGE = "fallback_browser_package"
         const val KEY_LAST_DISPATCHED_URL = "last_dispatched_url"
         const val KEY_LAST_VIDEO_ID = "last_video_id"
         const val KEY_DISPATCH_COUNT = "dispatch_count"
@@ -1106,6 +1150,48 @@ class RouterActivity : Activity() {
         fun prefKeyRouteEnabled(route: ServiceRoute): String = "route_enabled_\${route.id}"
         fun prefKeyRoutePackage(route: ServiceRoute): String =
             if (route == ServiceRoute.YOUTUBE_VIDEO) "target_package" else "route_pkg_\${route.id}"
+
+        /**
+         * Tự động phát hiện (Auto-detect) tất cả trình duyệt Web đang được cài đặt trên thiết bị
+         * bằng cách truy vấn PackageManager với Intent(ACTION_VIEW, "http://www.example.com") + CATEGORY_BROWSABLE.
+         * Loại bỏ chính package của ứng dụng trung gian (context.packageName) để tránh lặp vô tận.
+         */
+        fun detectInstalledBrowsers(context: Context): List<DetectedBrowser> {
+            val pm = context.packageManager
+            val probeIntent = Intent(Intent.ACTION_VIEW, Uri.parse("http://www.example.com")).apply {
+                addCategory(Intent.CATEGORY_BROWSABLE)
+            }
+
+            val resolveInfos = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.queryIntentActivities(
+                        probeIntent,
+                        PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.queryIntentActivities(probeIntent, PackageManager.MATCH_ALL)
+                }
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+            val seenPackages = mutableSetOf<String>()
+            val browsers = mutableListOf<DetectedBrowser>()
+
+            for (info in resolveInfos) {
+                val pkg = info.activityInfo?.packageName ?: continue
+                if (pkg == context.packageName || !seenPackages.add(pkg)) continue
+                val label = try {
+                    info.loadLabel(pm).toString().takeIf { it.isNotBlank() } ?: pkg
+                } catch (_: Exception) {
+                    pkg
+                }
+                browsers.add(DetectedBrowser(appName = label, packageName = pkg))
+            }
+
+            return browsers
+        }
 
         private val URL_EXTRACT_PATTERN: Pattern =
             Pattern.compile("(https?://[\\\\w\\\\-._~:/?#\\\\[\\\\]@!$&'()*+,;=%]+)")
@@ -1290,6 +1376,17 @@ fun DispatcherMainScreen() {
         )
     }
 
+    // Tự động phát hiện toàn bộ Trình duyệt Web đang cài đặt trên thiết bị (Không định sẵn cứng)
+    var detectedBrowsers by remember {
+        mutableStateOf(RouterActivity.detectInstalledBrowsers(context))
+    }
+
+    var selectedBrowserPkg by remember {
+        mutableStateOf(
+            prefs.getString(RouterActivity.KEY_FALLBACK_BROWSER_PACKAGE, "") ?: ""
+        )
+    }
+
     var testUrl by remember {
         mutableStateOf("")
     }
@@ -1346,6 +1443,9 @@ fun DispatcherMainScreen() {
                     "Chưa có liên kết nào"
                 ) ?: "Chưa có liên kết nào"
 
+                // Quét lại danh sách trình duyệt cài trên máy mỗi khi quay lại màn hình
+                detectedBrowsers = RouterActivity.detectInstalledBrowsers(context)
+
                 ServiceRoute.entries.forEach { route ->
                     val currentPkg = routePackageMap[route] ?: route.defaultPackage
                     val isValid = currentPkg.isBlank() || checkPackageInstalled(context, currentPkg)
@@ -1382,7 +1482,7 @@ fun DispatcherMainScreen() {
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Điều hướng siêu mượt (Theme.NoDisplay & Default Browser)",
+                                    text = "Điều hướng siêu mượt (Theme.NoDisplay & Auto Browser)",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1444,6 +1544,107 @@ fun DispatcherMainScreen() {
                     }
                 }
 
+                // CARD 1: TỰ ĐỘNG PHÁT HIỆN & CHỌN TRÌNH DUYỆT CHO CÁC LINK CÒN LẠI
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xBF111827)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Trình duyệt mở các liên kết Web còn lại",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Khi mở link không thuộc YouTube, YT Music, Spotify, Facebook, MXH (hoặc khi luồng đang tắt), ứng dụng sẽ chuyển thẳng sang trình duyệt bạn chọn dưới đây (Tự động phát hiện từ thiết bị):",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    detectedBrowsers = RouterActivity.detectInstalledBrowsers(context)
+                                }
+                            ) {
+                                Text("Quét lại", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+
+                        if (detectedBrowsers.isEmpty()) {
+                            Text(
+                                text = "Không tìm thấy trình duyệt Web nào khác trên thiết bị.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        } else {
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Tuỳ chọn Tự động lấy trình duyệt đầu tiên phát hiện được
+                                FilterChip(
+                                    selected = selectedBrowserPkg.isBlank(),
+                                    onClick = {
+                                        selectedBrowserPkg = ""
+                                        prefs.edit()
+                                            .putString(RouterActivity.KEY_FALLBACK_BROWSER_PACKAGE, "")
+                                            .apply()
+                                    },
+                                    label = {
+                                        val firstAuto = detectedBrowsers.first().appName
+                                        Text(
+                                            text = "Tự động ($firstAuto)",
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    }
+                                )
+
+                                detectedBrowsers.forEach { browser ->
+                                    FilterChip(
+                                        selected = selectedBrowserPkg == browser.packageName,
+                                        onClick = {
+                                            selectedBrowserPkg = browser.packageName
+                                            prefs.edit()
+                                                .putString(
+                                                    RouterActivity.KEY_FALLBACK_BROWSER_PACKAGE,
+                                                    browser.packageName
+                                                )
+                                                .apply()
+                                        },
+                                        label = {
+                                            Text(
+                                                text = "\${browser.appName} (\${browser.packageName})",
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+
+                            val activeBrowserInfo = detectedBrowsers.find { it.packageName == selectedBrowserPkg }
+                                ?: detectedBrowsers.first()
+                            Text(
+                                text = "Đang chọn: \${activeBrowserInfo.appName} (\${activeBrowserInfo.packageName}) · Đã phát hiện \${detectedBrowsers.size} trình duyệt trên máy",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+
                 // DANH SÁCH CẤU HÌNH TỪNG LUỒNG DỊCH VỤ
                 ServiceRoute.entries.forEachIndexed { index, route ->
                     val currentPkg = routePackageMap[route] ?: route.defaultPackage
@@ -1474,11 +1675,11 @@ fun DispatcherMainScreen() {
                                     Text(
                                         text = when {
                                             !isEnabled && currentPkg.isNotBlank() && !isInstalled ->
-                                                "Đã tự động tắt luồng (Chưa cài $currentPkg -> Mở thẳng bằng Trình duyệt)"
+                                                "Đã tự động tắt luồng (Chưa cài $currentPkg -> Mở thẳng bằng Trình duyệt đã chọn)"
                                             isEnabled ->
                                                 "Đang bật đón bắt liên kết"
                                             else ->
-                                                "Đã tắt (ComponentName đã vô hiệu hóa)"
+                                                "Đã tắt (ComponentName đã vô hiệu hóa -> Mở qua Trình duyệt đã chọn)"
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = if (isEnabled) {
@@ -1504,7 +1705,7 @@ fun DispatcherMainScreen() {
                             }
 
                             Text(
-                                text = "Chọn nhanh Package đích hoặc để trống để mở bằng Trình duyệt:",
+                                text = "Chọn nhanh Package đích hoặc để trống để mở bằng Trình duyệt đã chọn:",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1544,8 +1745,8 @@ fun DispatcherMainScreen() {
                                         setRouteComponentEnabled(context, prefs, route, false)
                                     }
                                 },
-                                label = { Text("Package Name đích (Để trống = Mở bằng Web)") },
-                                placeholder = { Text("Để trống để mở qua trình duyệt Web") },
+                                label = { Text("Package Name đích (Để trống = Mở bằng Trình duyệt)") },
+                                placeholder = { Text("Để trống để mở qua trình duyệt đã chọn") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -1553,11 +1754,11 @@ fun DispatcherMainScreen() {
                             Text(
                                 text = when {
                                     currentPkg.isBlank() ->
-                                        "Chế độ Web: Đang để trống Package (Mở thẳng qua Trình duyệt)"
+                                        "Chế độ Web: Đang để trống Package (Mở thẳng qua Trình duyệt đã chọn)"
                                     isInstalled ->
                                         "Đã cài đặt \\"$currentPkg\\" trên thiết bị"
                                     else ->
-                                        "Chưa cài \\"$currentPkg\\" -> Đã tự động vô hiệu hóa luồng & mở thẳng qua Trình duyệt"
+                                        "Chưa cài \\"$currentPkg\\" -> Đã tự động vô hiệu hóa luồng & mở thẳng qua Trình duyệt đã chọn"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (currentPkg.isBlank() || isInstalled) {
@@ -1582,26 +1783,26 @@ fun DispatcherMainScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Cài đặt 'Mở theo mặc định' / Trình duyệt mặc định",
+                            text = "Đặt làm Ứng dụng mở đường dẫn tự động (Default Browser)",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "Nhờ hỗ trợ cả bộ lọc BROWSABLE http/https lẫn autoVerify, bạn có thể bật 'Mở đường liên kết được hỗ trợ' hoặc chọn làm ứng dụng điều hướng liên kết mặc định mượt như phiên bản đầu.",
+                            text = "Khi bạn chọn ${config.appName} làm ứng dụng trình duyệt mặc định (Default Browser app), mọi liên kết YouTube / YT Music / Spotify / FB / MXH sẽ tự động đi vào bản Mod tương ứng, còn toàn bộ liên kết Web khác sẽ đi thẳng sang trình duyệt bạn đã chọn ở trên.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Button(
-                            onClick = { openSystemDefaultLinksSettings(context) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Mở màn hình 'Mở theo mặc định' (Open by default)")
-                        }
-                        OutlinedButton(
                             onClick = { openDefaultAppsSettings(context) },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Mở cài đặt 'Ứng dụng mặc định' (Default Apps)")
+                            Text("1. Chọn làm 'Ứng dụng Trình duyệt mặc định' (Default Apps)")
+                        }
+                        OutlinedButton(
+                            onClick = { openSystemDefaultLinksSettings(context) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("2. Mở màn hình 'Mở theo mặc định' (Open by default)")
                         }
                     }
                 }
@@ -1906,11 +2107,12 @@ jobs:
           tag_name: v3.0.\${{ github.run_number }}
           name: "${config.appName} APK #\${{ github.run_number }}"
           body: |
-            ### Bản dựng tự động ${config.appName} (Theme.NoDisplay & Default Browser)
+            ### Bản dựng tự động ${config.appName} (Theme.NoDisplay & Auto Browser Discovery)
             - **YouTube Video:** \`${ytVideo.targetPackage || 'Web Browser'}\`
             - **YouTube Music:** \`${ytMusic.targetPackage || 'Web Browser'}\`
             - **Spotify:** \`${spotify.targetPackage || 'Web Browser'}\`
             - **Facebook & MXH:** \`${facebook.targetPackage || 'Web Browser'}\`
+            - **Các liên kết Web còn lại:** Tự động phát hiện trình duyệt trên máy (\`PackageManager.queryIntentActivities\`) và mở theo trình duyệt đã chọn.
           files: app/build/outputs/apk/debug/app-debug.apk
           draft: false
           prerelease: false
@@ -1979,6 +2181,7 @@ jobs:
             android:strokeColor="#FFFFFFFF"
             android:strokeWidth="3.5"
             android:strokeLineCap="round"
+            android:strokeLineJoin="round"
             android:pathData="M56,56 L70,42" />
     </group>
 </vector>`;
@@ -1990,7 +2193,7 @@ jobs:
       language: 'xml',
       category: 'core',
       description:
-        'RouterActivity dùng Theme.NoDisplay kèm bộ lọc Default Browser (http/https BROWSABLE) và pathPattern=".*" trên 5 <activity-alias> để bắt link mặc định siêu mượt như phiên bản đầu.',
+        'RouterActivity dùng Theme.NoDisplay kèm bộ lọc Default Browser (http/https BROWSABLE) và thẻ <queries> tự động phát hiện mọi trình duyệt Web cài trên thiết bị.',
       content: manifestXml,
     },
     {
@@ -1999,7 +2202,7 @@ jobs:
       language: 'kotlin',
       category: 'core',
       description:
-        'Kế thừa android.app.Activity (Theme.NoDisplay): Không tự mở app mặc định; nếu chưa cài bản Mod sẽ tự động tắt ComponentName của luồng đó và mở thẳng qua trình duyệt mà không hiện bảng lỗi.',
+        'Kế thừa android.app.Activity (Theme.NoDisplay): Tự động quét trình duyệt qua PackageManager.queryIntentActivities và chuyển mọi link ngoài danh sách sang trình duyệt đã chọn.',
       content: routerActivityKt,
     },
     {
@@ -2008,7 +2211,7 @@ jobs:
       language: 'kotlin',
       category: 'core',
       description:
-        'Giao diện Compose Material 3 có Logo, Hình nền đa lớp, tự động vô hiệu hóa ComponentName nếu gói đích chưa cài đặt, và nút mở cài đặt Default Apps / Open by default.',
+        'Giao diện Compose Material 3 tự động phát hiện danh sách trình duyệt thật trên máy để người dùng chọn trình duyệt mở các liên kết Web còn lại.',
       content: mainActivityKt,
     },
     {

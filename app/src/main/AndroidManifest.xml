@@ -4,8 +4,9 @@
 
     <!--
       Chính sách Package Visibility của Android 11+ (API 30+):
-      Khai báo các package đích và truy vấn trình duyệt (http/https BROWSABLE)
-      để kiểm tra trạng thái cài đặt và chuyển tiếp mượt mà trong mili-giây.
+      - Khai báo <intent> với ACTION_VIEW + CATEGORY_BROWSABLE (http & https) giúp
+        PackageManager.queryIntentActivities() TỰ ĐỘNG PHÁT HIỆN 100% trình duyệt
+        đang cài trên máy người dùng mà không cần định sẵn tên gói trình duyệt!
     -->
     <queries>
         <!-- YouTube Video -->
@@ -40,13 +41,10 @@
         <package android:name="com.twitter.android" />
         <package android:name="com.reddit.frontpage" />
 
-        <!-- Trình duyệt Web phổ biến (Dùng khi mở thẳng qua trình duyệt không hiện bảng lỗi) -->
-        <package android:name="com.android.chrome" />
-        <package android:name="com.brave.browser" />
-        <package android:name="org.mozilla.firefox" />
-        <package android:name="com.microsoft.emmx" />
-        <package android:name="com.sec.android.app.sbrowser" />
-
+        <!--
+          Bộ truy vấn động giúp hệ thống TỰ ĐỘNG QUÉT & PHÁT HIỆN mọi trình duyệt Web
+          đang cài đặt trên thiết bị (Chrome, Cốc Cốc, Brave, Samsung Internet, Firefox, Via, Edge...)
+        -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
@@ -118,14 +116,6 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
-
-        <!--
-          ======================================================================
-          CÁC ACTIVITY-ALIAS ĐỘC LẬP CHO TỪNG LUỒNG DỊCH VỤ:
-          Khi bản Mod của một luồng chưa được cài đặt hoặc người dùng gạt nút Tắt,
-          hệ thống sẽ tự động vô hiệu hóa ComponentName của alias đó (DISABLED).
-          ======================================================================
-        -->
 
         <!-- ALIAS 1: YOUTUBE VIDEO (youtube.com, m.youtube.com, www.youtube.com, youtu.be) -->
         <activity-alias
