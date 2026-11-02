@@ -196,6 +196,12 @@ fun DispatcherMainScreen() {
         )
     }
 
+    var confirmBeforeRedirect by remember {
+        mutableStateOf(
+            prefs.getBoolean(RouterActivity.KEY_CONFIRM_BEFORE_REDIRECT, true)
+        )
+    }
+
     // Điền sẵn đường link mặc định để người dùng có thể bấm thử ngay lập tức
     var testUrl by remember {
         mutableStateOf(RouterActivity.DEFAULT_SAMPLE_YOUTUBE_URL)
@@ -343,7 +349,7 @@ fun DispatcherMainScreen() {
                     }
                 }
 
-                // CARD 2: BẮT LINK NGAY BÊN TRONG TRÌNH DUYỆT (ĐÃ SỬA LỖI VĂNG CHROME)
+                // CARD 2: BẮT LINK NGAY BÊN TRÌNH DUYỆT & NÚT XÁC NHẬN ĐỒNG Ý MỞ YOUTUBE
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -352,7 +358,7 @@ fun DispatcherMainScreen() {
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -361,15 +367,54 @@ fun DispatcherMainScreen() {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "2. Bắt link YouTube / Nhạc ngay TRONG Trình duyệt",
+                                    text = "2. Hiện nút 'Đồng ý' trước khi chuyển sang YouTube",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = if (inBrowserAccessibilityActive) {
-                                        "ĐANG HOẠT ĐỘNG: Đã sửa triệt để lỗi tự bấm Back văng ngược về Chrome. Khi bấm vào video/Shorts trong trình duyệt, ứng dụng sẽ mở thẳng YouTube Morphe và giữ nguyên màn hình phát!"
+                                    text = if (confirmBeforeRedirect) {
+                                        "ĐANG BẬT: Khi phát hiện link YouTube / Nhạc, sẽ hiện nút bấm 'Đồng ý mở YouTube' nổi trên màn hình. Bạn nhấn Đồng ý mới chuyển sang ứng dụng."
                                     } else {
-                                        "CHƯA BẬT TRỢ NĂNG: Bật mục này để khi bạn đang ở trong Chrome / Brave / Firefox mà bấm vào video YouTube thì nó tự nhảy sang YouTube Mod."
+                                        "ĐANG TẮT: Tự động chuyển thẳng sang YouTube Mod ngay lập tức không hỏi xác nhận."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (confirmBeforeRedirect) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
+
+                            Switch(
+                                checked = confirmBeforeRedirect,
+                                onCheckedChange = { enabled ->
+                                    confirmBeforeRedirect = enabled
+                                    prefs.edit()
+                                        .putBoolean(RouterActivity.KEY_CONFIRM_BEFORE_REDIRECT, enabled)
+                                        .apply()
+                                }
+                            )
+                        }
+
+                        HorizontalDivider()
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Bắt link YouTube ngay TRONG Trình duyệt",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (inBrowserAccessibilityActive) {
+                                        "ĐANG HOẠT ĐỘNG: Khi bấm vào video/Shorts trong Chrome, sẽ hiện thanh nút bấm 'Đồng ý mở YouTube' ngay phía dưới trình duyệt!"
+                                    } else {
+                                        "CHƯA BẬT TRỢ NĂNG: Bật mục này để khi đang lướt Chrome / Brave / Firefox mà bấm vào video YouTube thì hiện nút chuyển sang YouTube Mod."
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (inBrowserAccessibilityActive) {

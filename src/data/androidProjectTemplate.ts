@@ -531,20 +531,18 @@ ${queriesPackagesXml}
         </activity>
 
         <!--
-          2. RouterActivity (Theme.NoDisplay):
-          QUAN TRỌNG: Trên Android 12/13/14 (đặc biệt Xiaomi HyperOS & Samsung OneUI),
-          KHÔNG ĐƯỢC khai báo <data android:scheme="http"/> mà thiếu android:host,
-          vì nếu thiếu android:host hệ thống sẽ coi app là Trình duyệt và làm TRỐNG RỖNG
-          danh sách "Thêm đường liên kết" trong mục "Mở theo mặc định" (Open by default)!
-          Do đó toàn bộ các host mặc định phải được khai báo tường minh kèm autoVerify="true"
-          ngay trong RouterActivity dưới đây để danh sách đường link mặc định luôn hiện đầy đủ.
+          2. RouterActivity (Theme.Translucent.NoTitleBar):
+          - Hỗ trợ hiển thị hộp thoại nút bấm "Đồng ý mở YouTube" nổi trên màn hình
+            (hoặc chuyển hướng ngầm tức thì nếu người dùng tắt chế độ hỏi xác nhận).
+          - Khai báo tường minh toàn bộ 25+ tên miền mặc định với autoVerify="true"
+            để danh sách đường liên kết trong "Mở theo mặc định" luôn hiển thị đầy đủ.
         -->
         <activity
             android:name=".RouterActivity"
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:theme="@android:style/Theme.NoDisplay">
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
 
             <!-- Danh sách Đường liên kết Mặc định hiển thị trong "Mở theo mặc định" (Open by default) -->
             <intent-filter
@@ -627,7 +625,7 @@ ${queriesPackagesXml}
         <!--
           3. BrowserUrlInterceptorService:
           Dịch vụ bắt link NGAY BÊN TRONG TRÌNH DUYỆT (Chrome, Brave, Firefox, Samsung Internet...).
-          Đã sửa triệt để lỗi tự bấm Back làm văng YouTube Morphe và lỗi lặp 3 giây.
+          Hiển thị nút xác nhận "Đồng ý mở YouTube" trước khi chuyển hướng.
         -->
         <service
             android:name=".BrowserUrlInterceptorService"
@@ -771,45 +769,72 @@ ${queriesPackagesXml}
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
+import android.text.TextUtils
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 
 /**
  * BrowserUrlInterceptorService:
  * Bắt link YouTube / YouTube Music / Spotify NGAY BÊN TRONG TRÌNH DUYỆT (Chrome, Brave, Firefox, Samsung Internet...).
  *
- * ĐÃ SỬA TRIỆT ĐỂ LỖI VĂNG NGƯỢC LẠI CHROME & LẶP VÔ TẬN (TRONG VIDEO):
- * 1. Đã XÓA hoàn toàn lệnh performGlobalAction(GLOBAL_ACTION_BACK) sau khi mở App Mod:
- *    Trước đây lệnh Back chạy sau 120ms lúc YouTube Morphe vừa hiện logo "M", khiến hệ thống bấm Back
- *    ngay trên YouTube Morphe làm văng ngược về lại trình duyệt Chrome.
- * 2. Chống lặp tuyệt đối theo trạng thái URL (State-based Deduplication):
- *    Khi đã phóng 1 video (lastInterceptedKey), dịch vụ sẽ KHÔNG bao giờ tự phóng lại cùng video đó
- *    dù sau 3 giây hay 10 phút, cho tới khi thanh địa chỉ trình duyệt thực sự chuyển sang trang khác
- *    (ví dụ: quay về trang chủ m.youtube.com, m.youtube.com/feed, google.com hoặc bấm sang video khác).
- * 3. Chỉ đọc đúng thanh địa chỉ (url_bar) của trình duyệt và kiểm tra chặt chẽ ID video/playlist hợp lệ.
+ * CƠ CHẾ HIỆN NÚT XÁC NHẬN "ĐỒNG Ý MỞ YOUTUBE":
+ * 1. Khi phát hiện người dùng mở một video YouTube / Shorts / Nhạc hợp lệ trong trình duyệt:
+ *    - Hiển thị một thanh nút bấm nổi ngay phía dưới màn hình trình duyệt (TYPE_ACCESSIBILITY_OVERLAY):
+ *      [ Đồng ý mở YouTube ]  |  [ Ở lại Web ]
+ *    - Chỉ khi người dùng chủ động nhấn vào nút "Đồng ý mở YouTube", ứng dụng mới thực hiện
+ *      chuyển hướng sang YouTube Mod (VD: YouTube Morphe / ReVanced).
+ * 2. Người dùng có thể bật/tắt chế độ "Hiện nút Đồng ý trước khi chuyển hướng" trong MainActivity.
  */
 class BrowserUrlInterceptorService : AccessibilityService() {
 
     private var lastInterceptedKey: String = ""
+    private var activeOverlayMediaKey: String = ""
     private var lastInterceptedTimeMs: Long = 0L
     private var cachedBrowserPackages: Set<String> = emptySet()
     private var lastBrowserCacheTimeMs: Long = 0L
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var confirmationOverlayView: View? = null
+    private val autoDismissRunnable = Runnable {
+        dismissConfirmationOverlay()
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         val pkgName = event.packageName?.toString() ?: return
         if (pkgName == packageName) return
+        if (pkgName == "com.android.systemui") return
 
         val prefs = getSharedPreferences(RouterActivity.PREFS_NAME, Context.MODE_PRIVATE)
         val interceptorEnabled = prefs.getBoolean(
             RouterActivity.KEY_IN_BROWSER_INTERCEPT_ENABLED,
             true
         )
-        if (!interceptorEnabled) return
+        if (!interceptorEnabled) {
+            dismissConfirmationOverlay()
+            return
+        }
 
-        if (!isDetectedBrowserPackage(pkgName)) return
+        if (!isDetectedBrowserPackage(pkgName)) {
+            dismissConfirmationOverlay()
+            return
+        }
 
         val rootNode = rootInActiveWindow ?: return
         val rawUrlBarText = extractBrowserAddressBarText(rootNode, pkgName) ?: return
@@ -826,37 +851,257 @@ class BrowserUrlInterceptorService : AccessibilityService() {
         if (mediaKey == null) {
             if (isDefinitelyNonVideoPage(uri)) {
                 lastInterceptedKey = ""
+                dismissConfirmationOverlay()
             }
             return
         }
 
-        val now = System.currentTimeMillis()
-
-        // Chống lặp tuyệt đối: Nếu vẫn là cùng một video đang hiển thị trên thanh địa chỉ trình duyệt
-        // thì KHÔNG mở lại lần 2
         if (mediaKey == lastInterceptedKey) {
             return
         }
 
+        val now = System.currentTimeMillis()
         if (now - lastInterceptedTimeMs < MIN_TRANSITION_GAP_MS) {
             return
         }
 
+        val readyTarget = RouterActivity.prepareBrowserServiceTarget(this, normalizedUrl)
+        if (readyTarget == null) {
+            return
+        }
+
+        val confirmBeforeRedirect = prefs.getBoolean(
+            RouterActivity.KEY_CONFIRM_BEFORE_REDIRECT,
+            true
+        )
+
         lastInterceptedKey = mediaKey
         lastInterceptedTimeMs = now
 
-        val dispatched = RouterActivity.dispatchUrlFromBrowserService(
-            context = this,
-            httpsUrl = normalizedUrl
-        )
-
-        if (!dispatched) {
-            lastInterceptedKey = ""
+        if (confirmBeforeRedirect) {
+            showConfirmationBannerOverlay(
+                mediaKey = mediaKey,
+                readyTarget = readyTarget,
+                normalizedUrl = normalizedUrl
+            )
+        } else {
+            val dispatched = RouterActivity.dispatchUrlFromBrowserService(
+                context = this,
+                httpsUrl = normalizedUrl
+            )
+            if (!dispatched) {
+                lastInterceptedKey = ""
+            }
         }
     }
 
     override fun onInterrupt() {
-        // Không cần xử lý
+        dismissConfirmationOverlay()
+    }
+
+    override fun onDestroy() {
+        dismissConfirmationOverlay()
+        super.onDestroy()
+    }
+
+    private fun showConfirmationBannerOverlay(
+        mediaKey: String,
+        readyTarget: ReadyDispatchTarget,
+        normalizedUrl: String
+    ) {
+        mainHandler.post {
+            dismissConfirmationOverlayInternal()
+            activeOverlayMediaKey = mediaKey
+
+            val wm = getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+            if (wm == null) {
+                launchFallbackConfirmationActivity(normalizedUrl)
+                return@post
+            }
+
+            try {
+                val bannerView = buildConfirmationBannerView(
+                    readyTarget = readyTarget,
+                    onAgreeClick = {
+                        dismissConfirmationOverlayInternal()
+                        RouterActivity.dispatchUrlFromBrowserService(
+                            context = this@BrowserUrlInterceptorService,
+                            httpsUrl = normalizedUrl
+                        )
+                    },
+                    onStayClick = {
+                        dismissConfirmationOverlayInternal()
+                    }
+                )
+
+                val layoutParams = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                    y = dpToPx(20)
+                }
+
+                wm.addView(bannerView, layoutParams)
+                confirmationOverlayView = bannerView
+
+                mainHandler.removeCallbacks(autoDismissRunnable)
+                mainHandler.postDelayed(autoDismissRunnable, OVERLAY_TIMEOUT_MS)
+            } catch (_: Exception) {
+                launchFallbackConfirmationActivity(normalizedUrl)
+            }
+        }
+    }
+
+    private fun launchFallbackConfirmationActivity(normalizedUrl: String) {
+        try {
+            val confirmIntent = Intent(this, RouterActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = Uri.parse(normalizedUrl)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(confirmIntent)
+        } catch (_: Exception) {
+            // Bỏ qua
+        }
+    }
+
+    private fun buildConfirmationBannerView(
+        readyTarget: ReadyDispatchTarget,
+        onAgreeClick: () -> Unit,
+        onStayClick: () -> Unit
+    ): View {
+        val outerWrapper = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(14), dpToPx(8), dpToPx(14), dpToPx(8))
+        }
+
+        val cardBackground = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(18).toFloat()
+            setColor(Color.parseColor("#F20F172A"))
+            setStroke(dpToPx(1), Color.parseColor("#4D10B981"))
+        }
+
+        val cardContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = cardBackground
+            setPadding(dpToPx(16), dpToPx(14), dpToPx(16), dpToPx(14))
+            elevation = dpToPx(10).toFloat()
+        }
+
+        val titleView = TextView(this).apply {
+            text = "Phát hiện liên kết \${readyTarget.service.title}"
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTypeface(typeface, Typeface.BOLD)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        }
+
+        val subtitleView = TextView(this).apply {
+            text = "Đích: \${readyTarget.targetPackage} · Nhấn Đồng ý để chuyển sang ứng dụng"
+            setTextColor(Color.parseColor("#94A3B8"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            setPadding(0, dpToPx(2), 0, dpToPx(10))
+        }
+
+        val buttonRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val stayBtnBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(12).toFloat()
+            setColor(Color.parseColor("#1E293B"))
+            setStroke(dpToPx(1), Color.parseColor("#334155"))
+        }
+
+        val stayButton = Button(this).apply {
+            text = "Ở lại Web"
+            isAllCaps = false
+            setTextColor(Color.parseColor("#CBD5E1"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            background = stayBtnBg
+            setPadding(dpToPx(14), dpToPx(8), dpToPx(14), dpToPx(8))
+            setOnClickListener { onStayClick() }
+        }
+
+        val stayParams = LinearLayout.LayoutParams(
+            0,
+            dpToPx(42),
+            1f
+        ).apply {
+            marginEnd = dpToPx(10)
+        }
+
+        val agreeBtnBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(12).toFloat()
+            setColor(Color.parseColor("#10B981"))
+        }
+
+        val agreeButton = Button(this).apply {
+            text = "Đồng ý mở \${readyTarget.service.shortActionLabel}"
+            isAllCaps = false
+            setTextColor(Color.parseColor("#04130E"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setTypeface(typeface, Typeface.BOLD)
+            background = agreeBtnBg
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+            setOnClickListener { onAgreeClick() }
+        }
+
+        val agreeParams = LinearLayout.LayoutParams(
+            0,
+            dpToPx(42),
+            1.65f
+        )
+
+        buttonRow.addView(stayButton, stayParams)
+        buttonRow.addView(agreeButton, agreeParams)
+
+        cardContainer.addView(titleView)
+        cardContainer.addView(subtitleView)
+        cardContainer.addView(buttonRow)
+        outerWrapper.addView(cardContainer)
+
+        return outerWrapper
+    }
+
+    private fun dismissConfirmationOverlay() {
+        mainHandler.post {
+            dismissConfirmationOverlayInternal()
+        }
+    }
+
+    private fun dismissConfirmationOverlayInternal() {
+        mainHandler.removeCallbacks(autoDismissRunnable)
+        val view = confirmationOverlayView ?: return
+        confirmationOverlayView = null
+        activeOverlayMediaKey = ""
+        try {
+            val wm = getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+            wm?.removeViewImmediate(view)
+        } catch (_: Exception) {
+            // Bỏ qua
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            dp.toFloat(),
+            resources.displayMetrics
+        ).toInt()
     }
 
     private fun isDetectedBrowserPackage(pkgName: String): Boolean {
@@ -1037,6 +1282,7 @@ class BrowserUrlInterceptorService : AccessibilityService() {
 
     companion object {
         private const val MIN_TRANSITION_GAP_MS = 900L
+        private const val OVERLAY_TIMEOUT_MS = 15_000L
 
         private val KNOWN_URL_BAR_ID_SUFFIXES = listOf(
             "url_bar",
@@ -1080,15 +1326,48 @@ class BrowserUrlInterceptorService : AccessibilityService() {
 
   const routerActivityKt = `package ${config.applicationId}
 
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import java.util.regex.Pattern
 
 data class DetectedBrowser(
@@ -1099,6 +1378,7 @@ data class DetectedBrowser(
 enum class ServiceRoute(
     val id: String,
     val title: String,
+    val shortActionLabel: String,
     val aliasClassName: String,
     val defaultPackage: String,
     val defaultEnabled: Boolean,
@@ -1107,6 +1387,7 @@ enum class ServiceRoute(
     YOUTUBE_VIDEO(
         id = "youtube_video",
         title = "YouTube Video",
+        shortActionLabel = "YouTube",
         aliasClassName = "${config.applicationId}.RouteYoutubeVideoAlias",
         defaultPackage = "${ytVideo.targetPackage}",
         defaultEnabled = ${ytVideo.enabled},
@@ -1122,6 +1403,7 @@ enum class ServiceRoute(
     YOUTUBE_MUSIC(
         id = "youtube_music",
         title = "YouTube Music",
+        shortActionLabel = "YouTube Music",
         aliasClassName = "${config.applicationId}.RouteYoutubeMusicAlias",
         defaultPackage = "${ytMusic.targetPackage}",
         defaultEnabled = ${ytMusic.enabled},
@@ -1136,6 +1418,7 @@ enum class ServiceRoute(
     SPOTIFY(
         id = "spotify",
         title = "Spotify",
+        shortActionLabel = "Spotify",
         aliasClassName = "${config.applicationId}.RouteSpotifyAlias",
         defaultPackage = "${spotify.targetPackage}",
         defaultEnabled = ${spotify.enabled},
@@ -1149,6 +1432,7 @@ enum class ServiceRoute(
     FACEBOOK(
         id = "facebook",
         title = "Facebook & Watch",
+        shortActionLabel = "Facebook",
         aliasClassName = "${config.applicationId}.RouteFacebookAlias",
         defaultPackage = "${facebook.targetPackage}",
         defaultEnabled = ${facebook.enabled},
@@ -1162,6 +1446,7 @@ enum class ServiceRoute(
     SOCIAL_MEDIA(
         id = "social_media",
         title = "Mạng xã hội (TikTok / IG / X / Reddit)",
+        shortActionLabel = "App Mạng xã hội",
         aliasClassName = "${config.applicationId}.RouteSocialAlias",
         defaultPackage = "${social.targetPackage}",
         defaultEnabled = ${social.enabled},
@@ -1186,27 +1471,33 @@ data class TranslatedLinkResult(
     val linkSubType: String
 )
 
-class RouterActivity : Activity() {
+data class ReadyDispatchTarget(
+    val translated: TranslatedLinkResult,
+    val service: ServiceRoute,
+    val targetPackage: String,
+    val useNativeScheme: Boolean
+)
+
+class RouterActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handleIncomingIntent(intent)
-        finish()
-    }
+        window?.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
 
-    private fun handleIncomingIntent(incomingIntent: Intent?) {
-        val incomingUri = extractIncomingUri(incomingIntent) ?: return
+        val incomingUri = extractIncomingUri(intent)
+        if (incomingUri == null) {
+            finish()
+            return
+        }
+
         val translated = analyzeAndTranslateUri(incomingUri)
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val service = translated.service
 
         if (service == null) {
-            prefs.edit()
-                .putString(KEY_LAST_DISPATCHED_URL, translated.normalizedHttpsUrl)
-                .putString(KEY_LAST_VIDEO_ID, "WEB_BROWSER")
-                .putInt(KEY_DISPATCH_COUNT, prefs.getInt(KEY_DISPATCH_COUNT, 0) + 1)
-                .apply()
+            recordDispatchStats(prefs, translated.normalizedHttpsUrl, "WEB_BROWSER")
             openInDetectedBrowser(this, prefs, translated.normalizedHttpsUrl)
+            finish()
             return
         }
 
@@ -1217,29 +1508,69 @@ class RouterActivity : Activity() {
 
         if (!isRouteEnabled) {
             openInDetectedBrowser(this, prefs, translated.normalizedHttpsUrl)
+            finish()
             return
         }
 
         val targetPackage = resolveTargetPackageForLink(this, prefs, service, translated.linkSubType)
         val useNativeScheme = prefs.getBoolean(KEY_USE_NATIVE_SCHEME, ${config.preferNativeSchemeDefault})
 
-        prefs.edit()
-            .putString(KEY_LAST_DISPATCHED_URL, translated.normalizedHttpsUrl)
-            .putString(KEY_LAST_VIDEO_ID, translated.extractedId ?: service.title)
-            .putInt(KEY_DISPATCH_COUNT, prefs.getInt(KEY_DISPATCH_COUNT, 0) + 1)
-            .apply()
-
         if (targetPackage.isBlank()) {
+            recordDispatchStats(prefs, translated.normalizedHttpsUrl, translated.extractedId ?: service.title)
             openInDetectedBrowser(this, prefs, translated.normalizedHttpsUrl)
+            finish()
             return
         }
 
         if (!isPackageInstalled(this, targetPackage)) {
             disableRouteAndAliasSilently(this, prefs, service)
             openInDetectedBrowser(this, prefs, translated.normalizedHttpsUrl)
+            finish()
             return
         }
 
+        val confirmBeforeRedirect = prefs.getBoolean(KEY_CONFIRM_BEFORE_REDIRECT, true)
+        val bypassConfirm = intent?.getBooleanExtra(EXTRA_BYPASS_CONFIRM, false) == true
+
+        if (confirmBeforeRedirect && !bypassConfirm) {
+            setContent {
+                MaterialTheme(colorScheme = darkColorScheme()) {
+                    ConfirmRedirectOverlayScreen(
+                        translated = translated,
+                        service = service,
+                        targetPackage = targetPackage,
+                        onConfirmRedirect = {
+                            recordDispatchStats(
+                                prefs,
+                                translated.normalizedHttpsUrl,
+                                translated.extractedId ?: service.title
+                            )
+                            val launched = tryLaunchTargetPackage(
+                                context = this@RouterActivity,
+                                translated = translated,
+                                targetPackage = targetPackage,
+                                preferNativeScheme = useNativeScheme
+                            )
+                            if (!launched) {
+                                disableRouteAndAliasSilently(this@RouterActivity, prefs, service)
+                                openInDetectedBrowser(this@RouterActivity, prefs, translated.normalizedHttpsUrl)
+                            }
+                            finish()
+                        },
+                        onOpenInBrowserInstead = {
+                            openInDetectedBrowser(this@RouterActivity, prefs, translated.normalizedHttpsUrl)
+                            finish()
+                        },
+                        onCancelStay = {
+                            finish()
+                        }
+                    )
+                }
+            }
+            return
+        }
+
+        recordDispatchStats(prefs, translated.normalizedHttpsUrl, translated.extractedId ?: service.title)
         val launched = tryLaunchTargetPackage(
             context = this,
             translated = translated,
@@ -1251,6 +1582,7 @@ class RouterActivity : Activity() {
             disableRouteAndAliasSilently(this, prefs, service)
             openInDetectedBrowser(this, prefs, translated.normalizedHttpsUrl)
         }
+        finish()
     }
 
     private fun extractIncomingUri(incomingIntent: Intent?): Uri? {
@@ -1288,9 +1620,11 @@ class RouterActivity : Activity() {
         const val KEY_WALLPAPER_STYLE = "wallpaper_style"
         const val KEY_FALLBACK_BROWSER_PACKAGE = "fallback_browser_package"
         const val KEY_IN_BROWSER_INTERCEPT_ENABLED = "in_browser_intercept_enabled"
+        const val KEY_CONFIRM_BEFORE_REDIRECT = "confirm_before_redirect"
         const val KEY_LAST_DISPATCHED_URL = "last_dispatched_url"
         const val KEY_LAST_VIDEO_ID = "last_video_id"
         const val KEY_DISPATCH_COUNT = "dispatch_count"
+        const val EXTRA_BYPASS_CONFIRM = "extra_bypass_confirm"
         const val DEFAULT_SAMPLE_YOUTUBE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
         fun prefKeyRouteEnabled(route: ServiceRoute): String = "route_enabled_\${route.id}"
@@ -1300,23 +1634,35 @@ class RouterActivity : Activity() {
         private val URL_EXTRACT_PATTERN: Pattern =
             Pattern.compile("(https?://[\\\\w\\\\-._~:/?#\\\\[\\\\]@!$&'()*+,;=%]+)")
 
-        fun dispatchUrlFromBrowserService(context: Context, httpsUrl: String): Boolean {
+        private fun recordDispatchStats(
+            prefs: android.content.SharedPreferences,
+            normalizedUrl: String,
+            videoOrServiceId: String
+        ) {
+            prefs.edit()
+                .putString(KEY_LAST_DISPATCHED_URL, normalizedUrl)
+                .putString(KEY_LAST_VIDEO_ID, videoOrServiceId)
+                .putInt(KEY_DISPATCH_COUNT, prefs.getInt(KEY_DISPATCH_COUNT, 0) + 1)
+                .apply()
+        }
+
+        fun prepareBrowserServiceTarget(context: Context, httpsUrl: String): ReadyDispatchTarget? {
             val rawUri = try {
                 Uri.parse(httpsUrl)
             } catch (_: Exception) {
-                return false
+                return null
             }
 
             val translated = analyzeAndTranslateUri(rawUri)
-            val service = translated.service ?: return false
+            val service = translated.service ?: return null
 
             if (translated.extractedId.isNullOrBlank()) {
-                return false
+                return null
             }
 
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val isRouteEnabled = prefs.getBoolean(prefKeyRouteEnabled(service), service.defaultEnabled)
-            if (!isRouteEnabled) return false
+            if (!isRouteEnabled) return null
 
             val targetPackage = resolveTargetPackageForLink(
                 context,
@@ -1324,27 +1670,39 @@ class RouterActivity : Activity() {
                 service,
                 translated.linkSubType
             )
-            if (targetPackage.isBlank()) return false
+            if (targetPackage.isBlank()) return null
 
             if (!isPackageInstalled(context, targetPackage)) {
                 disableRouteAndAliasSilently(context, prefs, service)
-                return false
+                return null
             }
 
             val useNativeScheme = prefs.getBoolean(KEY_USE_NATIVE_SCHEME, ${config.preferNativeSchemeDefault})
+            return ReadyDispatchTarget(
+                translated = translated,
+                service = service,
+                targetPackage = targetPackage,
+                useNativeScheme = useNativeScheme
+            )
+        }
+
+        fun dispatchUrlFromBrowserService(context: Context, httpsUrl: String): Boolean {
+            val ready = prepareBrowserServiceTarget(context, httpsUrl) ?: return false
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
             val launched = tryLaunchTargetPackage(
                 context = context,
-                translated = translated,
-                targetPackage = targetPackage,
-                preferNativeScheme = useNativeScheme
+                translated = ready.translated,
+                targetPackage = ready.targetPackage,
+                preferNativeScheme = ready.useNativeScheme
             )
 
             if (launched) {
-                prefs.edit()
-                    .putString(KEY_LAST_DISPATCHED_URL, translated.normalizedHttpsUrl)
-                    .putString(KEY_LAST_VIDEO_ID, translated.extractedId)
-                    .putInt(KEY_DISPATCH_COUNT, prefs.getInt(KEY_DISPATCH_COUNT, 0) + 1)
-                    .apply()
+                recordDispatchStats(
+                    prefs,
+                    ready.translated.normalizedHttpsUrl,
+                    ready.translated.extractedId ?: ready.service.title
+                )
             }
             return launched
         }
@@ -1710,6 +2068,135 @@ class RouterActivity : Activity() {
             return browsers
         }
     }
+}
+
+@Composable
+fun ConfirmRedirectOverlayScreen(
+    translated: TranslatedLinkResult,
+    service: ServiceRoute,
+    targetPackage: String,
+    onConfirmRedirect: () -> Unit,
+    onOpenInBrowserInstead: () -> Unit,
+    onCancelStay: () -> Unit
+) {
+    val backdropInteraction = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0x99050811))
+            .clickable(
+                interactionSource = backdropInteraction,
+                indication = null,
+                onClick = onCancelStay
+            )
+            .padding(16.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {}
+                ),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF0F172A)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Xác nhận chuyển hướng sang \${service.shortActionLabel}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+
+                Text(
+                    text = "Phát hiện liên kết \${service.title} (\${translated.linkSubType}). Nhấn nút Đồng ý bên dưới để mở trong ứng dụng đích:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF94A3B8)
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E293B), shape = RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Ứng dụng đích: $targetPackage",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFF34D399)
+                    )
+                    Text(
+                        text = translated.normalizedHttpsUrl,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFFCBD5E1),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Button(
+                    onClick = onConfirmRedirect,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981),
+                        contentColor = Color(0xFF04130E)
+                    )
+                ) {
+                    Text(
+                        text = "Đồng ý mở \${service.shortActionLabel}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onOpenInBrowserInstead,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "Mở Trình duyệt",
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+
+                    TextButton(
+                        onClick = onCancelStay,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "Ở lại / Đóng",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+            }
+        }
+    }
 }`;
 
   const mainActivityKt = `package ${config.applicationId}
@@ -1910,6 +2397,12 @@ fun DispatcherMainScreen() {
         )
     }
 
+    var confirmBeforeRedirect by remember {
+        mutableStateOf(
+            prefs.getBoolean(RouterActivity.KEY_CONFIRM_BEFORE_REDIRECT, true)
+        )
+    }
+
     var testUrl by remember {
         mutableStateOf(RouterActivity.DEFAULT_SAMPLE_YOUTUBE_URL)
     }
@@ -2056,7 +2549,7 @@ fun DispatcherMainScreen() {
                     }
                 }
 
-                // CARD 2: BẮT LINK NGAY BÊN TRONG TRÌNH DUYỆT (ĐÃ SỬA LỖI VĂNG CHROME)
+                // CARD 2: BẮT LINK NGAY BÊN TRÌNH DUYỆT & NÚT XÁC NHẬN ĐỒNG Ý MỞ YOUTUBE
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -2065,7 +2558,7 @@ fun DispatcherMainScreen() {
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -2074,15 +2567,54 @@ fun DispatcherMainScreen() {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "2. Bắt link YouTube / Nhạc ngay TRONG Trình duyệt",
+                                    text = "2. Hiện nút 'Đồng ý' trước khi chuyển sang YouTube",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = if (inBrowserAccessibilityActive) {
-                                        "ĐANG HOẠT ĐỘNG: Đã sửa triệt để lỗi tự bấm Back văng ngược về Chrome. Khi bấm vào video/Shorts trong trình duyệt, ứng dụng sẽ mở thẳng YouTube Morphe và giữ nguyên màn hình phát!"
+                                    text = if (confirmBeforeRedirect) {
+                                        "ĐANG BẬT: Khi phát hiện link YouTube / Nhạc, sẽ hiện nút bấm 'Đồng ý mở YouTube' nổi trên màn hình. Bạn nhấn Đồng ý mới chuyển sang ứng dụng."
                                     } else {
-                                        "CHƯA BẬT TRỢ NĂNG: Bật mục này để khi bạn đang ở trong Chrome / Brave / Firefox mà bấm vào video YouTube thì nó tự nhảy sang YouTube Mod."
+                                        "ĐANG TẮT: Tự động chuyển thẳng sang YouTube Mod ngay lập tức không hỏi xác nhận."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (confirmBeforeRedirect) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
+
+                            Switch(
+                                checked = confirmBeforeRedirect,
+                                onCheckedChange = { enabled ->
+                                    confirmBeforeRedirect = enabled
+                                    prefs.edit()
+                                        .putBoolean(RouterActivity.KEY_CONFIRM_BEFORE_REDIRECT, enabled)
+                                        .apply()
+                                }
+                            )
+                        }
+
+                        HorizontalDivider()
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Bắt link YouTube ngay TRONG Trình duyệt",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (inBrowserAccessibilityActive) {
+                                        "ĐANG HOẠT ĐỘNG: Khi bấm vào video/Shorts trong Chrome, sẽ hiện thanh nút bấm 'Đồng ý mở YouTube' ngay phía dưới trình duyệt!"
+                                    } else {
+                                        "CHƯA BẬT TRỢ NĂNG: Bật mục này để khi đang lướt Chrome / Brave / Firefox mà bấm vào video YouTube thì hiện nút chuyển sang YouTube Mod."
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (inBrowserAccessibilityActive) {

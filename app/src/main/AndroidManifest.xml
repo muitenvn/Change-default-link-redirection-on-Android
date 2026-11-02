@@ -81,20 +81,18 @@
         </activity>
 
         <!--
-          2. RouterActivity (Theme.NoDisplay):
-          QUAN TRỌNG: Trên Android 12/13/14 (đặc biệt Xiaomi HyperOS & Samsung OneUI),
-          KHÔNG ĐƯỢC khai báo <data android:scheme="http"/> mà thiếu android:host,
-          vì nếu thiếu android:host hệ thống sẽ coi app là Trình duyệt và làm TRỐNG RỖNG
-          danh sách "Thêm đường liên kết" trong mục "Mở theo mặc định" (Open by default)!
-          Do đó toàn bộ các host mặc định phải được khai báo tường minh kèm autoVerify="true"
-          ngay trong RouterActivity dưới đây để danh sách đường link mặc định luôn hiện đầy đủ.
+          2. RouterActivity (Theme.Translucent.NoTitleBar):
+          - Hỗ trợ hiển thị hộp thoại nút bấm "Đồng ý chuyển sang YouTube" nổi trên màn hình
+            (hoặc chuyển hướng ngầm tức thì nếu người dùng tắt chế độ hỏi xác nhận).
+          - Khai báo tường minh toàn bộ 25+ tên miền mặc định với autoVerify="true"
+            để danh sách đường liên kết trong "Mở theo mặc định" luôn hiển thị đầy đủ.
         -->
         <activity
             android:name=".RouterActivity"
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:theme="@android:style/Theme.NoDisplay">
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
 
             <!-- Danh sách Đường liên kết Mặc định hiển thị trong "Mở theo mặc định" (Open by default) -->
             <intent-filter
